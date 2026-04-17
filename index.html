@@ -1685,8 +1685,8 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
       </div>
       <div class="div-btn" onclick="selectDivision('guidance')">
         <div class="div-icon">🔗</div>
-        <div class="div-name">Single Tie Guidance</div>
-        <div class="div-desc">Single tie guidance advisors</div>
+        <div class="div-name">Specialist Guidance</div>
+        <div class="div-desc">Specialist guidance advisors</div>
       </div>
     </div>
   </div>
@@ -2394,12 +2394,10 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
     <div class="modal-field">
       <div class="field-lbl">Division (for consultants)</div>
       <select id="addUserDiv">
-        <option value="">— None / Custom —</option>
+        <option value="">— None —</option>
         <option value="core">⭐ Core</option>
         <option value="advice">💼 Advice</option>
-        <option value="guidance">🔗 Single Tie Guidance</option>
-        <option value="advice">💼 Advice</option>
-        <option value="core">⭐ Core</option>
+        <option value="guidance">🔗 Specialist Guidance</option>
       </select>
     </div>
     <div class="modal-field">
@@ -2483,7 +2481,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
         <option value="">— Select division —</option>
         <option value="core">⭐ Core</option>
         <option value="advice">💼 Advice</option>
-        <option value="guidance">🔗 Single Tie Guidance</option>
+        <option value="guidance">🔗 Specialist Guidance</option>
         <option value="advice">💼 Advice</option>
         <option value="core">⭐ Core</option>
       </select>
@@ -2513,7 +2511,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
 <!-- COMPLIANCE -->
 <div class="page" id="page-compliance">
   <div class="section-head">
-    <div><div class="section-title">🛡 Compliance</div><div class="section-sub">Single Tie Guidance — Call Assessment Form</div></div>
+    <div><div class="section-title">🛡 Compliance</div><div class="section-sub">Specialist Guidance — Call Assessment Form</div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-s" onclick="showComplianceView('form');clearComplianceForm(false);" id="compFormBtn" style="font-size:12px">📋 New Assessment</button>
       <button class="btn btn-s" onclick="showComplianceView('archive')" id="compArchiveBtn" style="font-size:12px">📂 Archive</button>
@@ -3724,7 +3722,7 @@ function dismissGreeting(){
 // DIVISION CONFIG
 // ═══════════════════════════════════════════════════════════════════
 const DIVISIONS = {
-  guidance: { label:'Single Tie Guidance',icon:'🔗', dbKey:'perfDash2_guidance' },
+  guidance: { label:'Specialist Guidance',icon:'🔗', dbKey:'perfDash2_guidance' },
   advice:   { label:'Advice',             icon:'💼', dbKey:'perfDash2_advice' },
   core:     { label:'Core',               icon:'⭐', dbKey:'perfDash2_core' }
 };
@@ -3810,8 +3808,9 @@ function applyRoleVisibility(){
   });
   const divBadge = document.getElementById('divisionBadge');
   const divArrow  = divBadge?.querySelector('span:last-child');
+  const isLocked = role === 'consultant' || (role === 'manager' && !!_currentUser?.divKey && !!DIVISIONS[_currentUser?.divKey]);
   if(divBadge){
-    if(role === 'consultant'){
+    if(isLocked){
       divBadge.style.cursor   = 'default';
       divBadge.style.pointerEvents = 'none';
       divBadge.title = '';
@@ -3851,14 +3850,19 @@ function _startWithRole(){
     setTimeout(()=>showPage('consultantdaily'), 700);
     return;
   }
-  // Compliance role - go to compliance tab directly
-  if(role === 'compliance'){
-    const startDiv = savedDiv || 'branch';
+  // Managers with an assigned division are locked to it (no division picker)
+  if(role === 'manager' && _currentUser?.divKey && DIVISIONS[_currentUser.divKey]){
+    const startDiv = savedDiv && DIVISIONS[savedDiv] ? savedDiv : _currentUser.divKey;
     selectDivision(startDiv);
     return;
   }
-  // Manager / Master - show division picker or restore saved
-  // selectDivision now handles the showPage('dashboard') call internally
+  // Compliance role - go to compliance tab directly
+  if(role === 'compliance'){
+    const startDiv = savedDiv && DIVISIONS[savedDiv] ? savedDiv : 'core';
+    selectDivision(startDiv);
+    return;
+  }
+  // Master only - show division picker or restore saved
   if(savedDiv && DIVISIONS[savedDiv]){
     selectDivision(savedDiv);
   } else {
@@ -4066,8 +4070,9 @@ function selectDivision(key){
 }
 
 function switchDivision(){
-  // Consultants cannot switch division — they are locked to their assigned one
+  // Consultants and managers with an assigned division cannot switch
   if(_currentUser?.role === 'consultant') return;
+  if(_currentUser?.role === 'manager' && _currentUser?.divKey && DIVISIONS[_currentUser.divKey]) return;
   if(_currentDbRef){ _currentDbRef.off(); _currentDbRef = null; _dbRef = null; }
   if(_notifListener){ _notifListener.off(); _notifListener = null; }
   _appInited = false;
@@ -4202,7 +4207,7 @@ function _lsViewKey(){
   // Use divKey + user id if available, otherwise just divKey
   // (divKey is always set before _initLocalViewMonth is called)
   const uid = _currentUser?.id || sessionStorage.getItem('pd_uid') || 'anon';
-  return 'lvMonth_' + (_currentDivKey||'branch') + '_' + uid;
+  return 'lvMonth_' + (_currentDivKey||'core') + '_' + uid;
 }
 function _readLocalViewMonth(){
   try{ return localStorage.getItem(_lsViewKey())||null; }catch(e){ return null; }
@@ -7184,7 +7189,7 @@ function renderDailySend(){
   const bauDivisions = [
     { key:'core',     label:'Core Team' },
     { key:'advice',   label:'Specialist Advice' },
-    { key:'guidance', label:'Single Tie Guidance' },
+    { key:'guidance', label:'Specialist Guidance' },
   ];
   const stDivisions = [
 
@@ -7413,24 +7418,14 @@ function renderDailySend(){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="chart-card">
-          <div class="chart-title">BAU — Revenue % of Target</div>
-          <div class="chart-sub">Core · Advice · Guidance vs on-track pace</div>
+          <div class="chart-title">Revenue % of Target</div>
+          <div class="chart-sub">Core · Advice · Specialist Guidance vs on-track pace</div>
           <div style="position:relative;height:240px"><canvas id="cDsBauRev"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">BAU — Needs Met % of Target</div>
-          <div class="chart-sub">Core · Advice · Guidance vs on-track pace</div>
+          <div class="chart-title">Needs Met % of Target</div>
+          <div class="chart-sub">Core · Advice · Specialist Guidance vs on-track pace</div>
           <div style="position:relative;height:240px"><canvas id="cDsBauNm"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Single Tie — Revenue % of Target</div>
-          <div class="chart-sub">Branch · D2C · Digital/Retail vs on-track pace</div>
-          <div style="position:relative;height:240px"><canvas id="cDsStRev"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Single Tie — Needs Met % of Target</div>
-          <div class="chart-sub">Branch · D2C · Digital/Retail vs on-track pace</div>
-          <div style="position:relative;height:240px"><canvas id="cDsStNm"></canvas></div>
         </div>
       </div>`;
 
@@ -7473,12 +7468,10 @@ function renderDailySend(){
 
     // Colours per division
     const divColors = {
-      core:'#5e9cf5', advice:'#2dce89', guidance:'#fbb83a',
-      branch:'#a78bfa', d2c:'#f5365c', retail:'#11cdef'
+      core:'#5e9cf5', advice:'#2dce89', guidance:'#fbb83a'
     };
     const divShortLabels = {
-      core:'Core', advice:'Advice', guidance:'Guidance',
-      branch:'Branch', d2c:'D2C', retail:'Digital/Retail'
+      core:'Core', advice:'Advice', guidance:'Specialist Guidance'
     };
 
     function makeChartCfg(divKeys, useNm){
@@ -7538,13 +7531,10 @@ function renderDailySend(){
     _moLastData = { divSummaries: divSummariesDs, results, mk };
 
     setTimeout(()=>{
-      ['cDsBauRev','cDsBauNm','cDsStRev','cDsStNm'].forEach(id=>destroyChart(id));
+      ['cDsBauRev','cDsBauNm'].forEach(id=>destroyChart(id));
       const bauDivKeys = ['core','advice','guidance'];
-      const stDivKeys  = ['branch','d2c','retail'];
       _charts.cDsBauRev = new Chart(document.getElementById('cDsBauRev'), makeChartCfg(bauDivKeys, false));
       _charts.cDsBauNm  = new Chart(document.getElementById('cDsBauNm'),  makeChartCfg(bauDivKeys, true));
-      _charts.cDsStRev  = new Chart(document.getElementById('cDsStRev'),  makeChartCfg(stDivKeys,  false));
-      _charts.cDsStNm   = new Chart(document.getElementById('cDsStNm'),   makeChartCfg(stDivKeys,  true));
     }, 80);
   });
 }
@@ -10059,7 +10049,7 @@ function submitDailyFigures(){
   const entry = {
     id, consultantName:myName, date, revenue:rev, nm, swiftRef:swift,
     submittedAt:new Date().toISOString(), status:'pending',
-    divKey:_currentDivKey||'branch'
+    divKey:_currentDivKey||'core'
   };
   ref.child(id).set(entry).then(()=>{
     document.getElementById('reviewModal').classList.remove('open');
@@ -10371,7 +10361,11 @@ function renderManagerOverview(){
   const content = document.getElementById('moContent');
   content.innerHTML = `<div class="empty"><div style="font-size:20px;margin-bottom:8px">⏳</div><div>Loading all divisions…</div></div>`;
 
-  const divKeys = Object.keys(DIVISIONS);
+  // Masters see all divisions; managers only see their own
+  const _moRole = _currentUser?.role || 'manager';
+  const divKeys = _moRole === 'master'
+    ? Object.keys(DIVISIONS)
+    : [_currentDivKey].filter(k => DIVISIONS[k]);
   const promises = divKeys.map(key=>{
     const dbKey = DIVISIONS[key].dbKey;
     return _db.ref(dbKey).once('value').then(snap=>{
@@ -13398,7 +13392,7 @@ function personAdjustedNmTarget(p, mk){
 function generateMonthlyReport(){
   const mk      = APP.activeMonth;
   const stats   = calcStats(mk).filter(s=>s.target>0);
-  const div     = DIVISIONS[_currentDivKey]||DIVISIONS.branch;
+  const div     = DIVISIONS[_currentDivKey]||DIVISIONS.core;
   const elapsed = APP.manualElapsed != null ? APP.manualElapsed : calWorkDaysTeam(mk);
   const allWD   = workingDatesInMonth(mk).length;
   const remaining = Math.max(0, allWD - elapsed);
@@ -13690,15 +13684,12 @@ function _renderUsersTable(){
   const consultantCount = users.filter(u=>u.role==='consultant').length;
   const thS='style="padding:8px 12px;background:var(--surface2);font-size:10px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--border);text-align:left;"';
 
-  // Team options: all 6 divisions + N/A
+  // Team options: 3 divisions + N/A
   const teamOpts = [
-    {val:'',       label:'N/A'},
-    {val:'branch', label:'🏦 Branch'},
-    {val:'d2c',    label:'💻 D2C'},
-    {val:'guidance',label:'🔗 Single Tie Guidance'},
-    {val:'retail', label:'🏪 Retail / Digital'},
-    {val:'advice', label:'💼 Advice'},
-    {val:'core',   label:'⭐ Core'},
+    {val:'',        label:'N/A'},
+    {val:'core',    label:'⭐ Core'},
+    {val:'advice',  label:'💼 Advice'},
+    {val:'guidance',label:'🔗 Specialist Guidance'},
   ];
 
   card.innerHTML=`
@@ -13908,7 +13899,7 @@ function maybeCreateRemedial(assessmentData){
     remedialActionRequired: requiresRemedial ? (actionParts.join('\n\n')||'See assessment for full details.') : '',
     assessmentNotes:  actionParts.join('\n\n'),
     brand:            assessmentData.brand||'',
-    divKey:           _currentDivKey||'branch',
+    divKey:           _currentDivKey||'core',
     // If auto-released (Pass/Pass with Dev): set release metadata now
     managerNotes:     '',
     releasedAt:       requiresRemedial ? null : new Date().toISOString(),
@@ -15404,7 +15395,7 @@ function submitCongratulation(){
     type:         'congratulations',
     read:         false,
     createdAt:    new Date().toISOString(),
-    divKey:       _currentDivKey||'branch',
+    divKey:       _currentDivKey||'core',
   };
 
   ref.child(id).set(msg)
@@ -15765,7 +15756,12 @@ function openDirectReportModal(managerName){
   let managerOptions, consultantList;
   if(userList.length){
     managerOptions = userList.filter(u => u.role !== 'consultant');
-    consultantList = userList.filter(u => u.role === 'consultant').map(u=>u.name);
+    // Filter consultants to same division as the selected manager (if manager has a divKey)
+    const mgrUser = managerName ? userList.find(u => u.name === managerName) : null;
+    const mgrDiv  = mgrUser?.divKey || null;
+    consultantList = userList
+      .filter(u => u.role === 'consultant' && (!mgrDiv || !u.divKey || u.divKey === mgrDiv))
+      .map(u => u.name);
   } else {
     // No user data loaded yet — fall back gracefully: show all people in both
     managerOptions = APP.people.map(p=>({name:p.name, role:'manager'}));
@@ -15857,14 +15853,22 @@ function drManagerChanged(name){
   }
   if(!name) return;
   const currentReports = (APP.directReports && APP.directReports[name]) || [];
+  // Find the selected manager's division to filter consultants
+  const allUsers = Object.values(_allUsers||{});
+  const mgrUser  = allUsers.find(u => u.name === name);
+  const mgrDiv   = mgrUser?.divKey || null;
   const grid = document.getElementById('drCheckboxGrid');
   if(!grid) return;
   grid.querySelectorAll('input[type=checkbox]').forEach(cb => {
     const label = cb.closest('label');
-    // Hide if this person IS the selected manager (they can't report to themselves)
-    if(cb.value === name){
-      if(label) label.style.display='none';
-      return;
+    // Hide if this person IS the selected manager
+    if(cb.value === name){ if(label) label.style.display='none'; return; }
+    // Hide consultants not in manager's division (if manager has one)
+    if(mgrDiv){
+      const conUser = allUsers.find(u => u.name === cb.value);
+      if(conUser?.divKey && conUser.divKey !== mgrDiv){
+        if(label) label.style.display='none'; return;
+      }
     }
     if(label) label.style.display='';
     cb.checked = currentReports.includes(cb.value);
@@ -16449,7 +16453,7 @@ function submitHolRequest(){
     status:       'pending',
     teamManager:  mgr,
     createdAt:    new Date().toISOString(),
-    divKey:       _currentDivKey||'branch',
+    divKey:       _currentDivKey||'core',
     reviewedBy:   null,
     reviewedAt:   null,
     reviewNotes:  null,
@@ -16619,7 +16623,7 @@ function reviewHolRequest(reqId, decision){
       msgRef.child(mid).set({
         id:mid, to:r.colleague, from:reviewer, fromRole:_currentUser?.role||'manager',
         message:msg, type:'holiday_review', read:false,
-        createdAt:new Date().toISOString(), divKey:_currentDivKey||'branch',
+        createdAt:new Date().toISOString(), divKey:_currentDivKey||'core',
         holidayRequestId: reqId,
       });
     }
@@ -18217,7 +18221,7 @@ if(sessionStorage.getItem('pd_auth')==='1'){
 // ── Firebase ref helper ─────────────────────────────────
 function _bsRef(month){
   if(!_db || !_currentDivKey) return null;
-  const dbKey = (DIVISIONS[_currentDivKey] || DIVISIONS.branch).dbKey;
+  const dbKey = (DIVISIONS[_currentDivKey] || DIVISIONS.core).dbKey;
   return month
     ? _db.ref(dbKey + '/bonusSubmissions/' + month)
     : _db.ref(dbKey + '/bonusSubmissions');
@@ -18306,7 +18310,7 @@ function submitConsultantBonus(){
   const proRata = fullBonus * (yourDays / wdm);
 
   const uid    = _currentUser.id;
-  const divKey = _currentDivKey || _currentUser?.divKey || 'branch';
+  const divKey = _currentDivKey || _currentUser?.divKey || 'core';
   const ref    = _bsRef(month);
   if(!ref){ _bsStatus('error', '&#x26A0;&#xFE0F; Database unavailable.'); return; }
 
@@ -18610,17 +18614,16 @@ async function bsmExportPayroll(){
   const DIV_ORDER = [
     { key:'core',     label:'Core Team'           },
     { key:'advice',   label:'Advice'              },
-    { key:'guidance', label:'Single Tie Guidance' },
+    { key:'guidance', label:'Specialist Guidance' },
   ];
 
   // Column E team label per divKey (matches the source Payroll Doc)
   const DIV_TEAM_LABEL = {
     core:     'Core',
-    branch:   'Branch',
-    d2c:      'D2C Team',
+
     advice:   'ST Advice',
     guidance: 'Specialist Guidance',
-    retail:   'Retail / Digital',
+
   };
 
   function levelLabel(type){ return type === 'senior' ? 'Senior Consultant' : 'Consultant'; }
