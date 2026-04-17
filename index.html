@@ -6327,7 +6327,10 @@ function closeSettingsSub(){
 }
 
 function _syncPeopleFromUsers(){
-  const divConsultants = Object.values(_allUsers||{})
+  // Don't sync if users haven't loaded yet — avoids wiping people list
+  const userList = Object.values(_allUsers||{});
+  if(!userList.length) return;
+  const divConsultants = userList
     .filter(u => u.role==='consultant' && u.divKey===_currentDivKey)
     .sort((a,b)=>a.name.localeCompare(b.name));
   if(!APP.people) APP.people = [];
@@ -6341,6 +6344,7 @@ function _syncPeopleFromUsers(){
   const divNames = new Set(divConsultants.map(u=>u.name));
   APP.people = APP.people.filter(p => {
     if(divNames.has(p.name)) return true;
+    // Keep people with historical entries even if no longer in users list
     const hasData = Object.values(APP.months||{}).some(m=>(m.entries||[]).some(e=>e.name===p.name));
     return hasData;
   });
@@ -11196,6 +11200,7 @@ function editRRCell(teamKey, mk, ds, calcRR){
 }
 
 function renderTeams(){
+  _syncPeopleFromUsers();
   populateAllSelects();
   const managers = _getDivisionManagers();
   const subNav   = document.getElementById('teamsSubNav');
@@ -11318,7 +11323,7 @@ function renderTeamDashboard(container, managerName){
   // teamCopRev and teamCopNm are derived from the daily loop below
   const teamNmTarget = teamPeople.reduce((s,p)=>s+(getPersonForMonth(p,mk).daysT||0)*1.75,0);
 
-  const teamImg = null;
+  const teamImg = MANAGER_PHOTOS[managerName] || null;
 
   // ── Build daily breakdown table ──────────────────────────────────
   const today2       = _localDateStr(new Date());
@@ -12926,7 +12931,7 @@ function exportBizCSV(){
 // Teams — one row per consultant per team for selected month
 function exportTeamsCSV(){
   const mk    = document.getElementById('teamsMonth').value || APP.activeMonth;
-  const teams = APP.teams || {g:[],james:[],damo:[]};
+  const teams = APP.teams || {};
   const rows  = [['Month','Team','Consultant','Revenue MTD (£)','Target (£)','Rev %','NM MTD','NM Target','Risk Ahead','NM Ahead']];
   const teamDefs = [];
   // Dynamic division managers
@@ -13637,7 +13642,7 @@ function _applyDefaults(){
   if(!APP.months)        APP.months = {};
   if(!APP.activeMonth)   APP.activeMonth = todayKey();
   if(!APP.months[APP.activeMonth]) APP.months[APP.activeMonth]={entries:[]};
-  if(!APP.teams)         APP.teams = {g:[],james:[],damo:[]};
+  if(!APP.teams)         APP.teams = {};
   if(!APP.bizTargets)    APP.bizTargets = {};
   if(!APP.holidays)      APP.holidays = {};
   if(!APP.sickness)      APP.sickness = {};
@@ -13654,8 +13659,18 @@ function _applyDefaults(){
 }
 
 function _startFirebase(){
-// Load once, then subscribe to real-time updates
-_dbRef.once('value').then(snap=>{
+// Load users + division data concurrently, then boot the app
+const _usersLoadPromise = (()=>{
+  const ref = _usersDbRef();
+  if(!ref) return Promise.resolve();
+  if(Object.keys(_allUsers||{}).length) return Promise.resolve(); // already loaded
+  return ref.once('value').then(s=>{ _allUsers = s.val()||{}; }).catch(()=>{});
+})();
+
+Promise.all([
+  _dbRef.once('value'),
+  _usersLoadPromise
+]).then(([snap])=>{
   const data = snap.val();
   if(data){ APP = data; }
   _applyDefaults();
@@ -13676,8 +13691,7 @@ _dbRef.once('value').then(snap=>{
     if(!remote) return;
     APP = remote;
     _applyDefaults();
-    // IMPORTANT: restore this user's local month — don't let another user's
-    // month change bleed into this session.
+    _syncPeopleFromUsers();
     _restoreLocalViewMonth();
     setSyncStatus('live');
     if(document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
@@ -13688,7 +13702,13 @@ _dbRef.once('value').then(snap=>{
   console.error('Firebase load failed:', e);
   setSyncStatus('error');
   _applyDefaults();
-  _syncPeopleFromUsers();
+  // Try to load users even on catch path
+  const _ucRef = _usersDbRef();
+  if(_ucRef && !Object.keys(_allUsers||{}).length){
+    _ucRef.once('value').then(s=>{ _allUsers=s.val()||{}; _syncPeopleFromUsers(); }).catch(()=>{});
+  } else {
+    _syncPeopleFromUsers();
+  }
   _initLocalViewMonth();
   populateAllSelects();
   renderDashboard();
