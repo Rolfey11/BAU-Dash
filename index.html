@@ -3260,6 +3260,21 @@ function bcSetType(t){
   bcRecalc();
 }
 
+// ── Specialist Guidance incentive bracket tables ─────────────────
+// Min: £650/day, OTE: £850/day, steps of £100
+const BC_GUIDANCE_BRACKETS = {
+  senior: [
+    [650,933],[750,1333],[850,1733],[950,2133],[1050,2533],
+    [1150,2933],[1250,3333],[1350,3733],[1450,4133],[1550,4533],
+    [1650,4933],[1750,5333],[1850,5733],[1950,6133]
+  ],
+  nonsenior: [
+    [650,1600],[750,2000],[850,2400],[950,2800],[1050,3200],
+    [1150,3600],[1250,4000],[1350,4400],[1450,4800],[1550,5200],
+    [1650,5600],[1750,6000],[1850,6400],[1950,6800]
+  ]
+};
+
 // ── Core incentive bracket tables (Cavendish Core Guidance) ─────
 // Senior: £1,200/day min, £1,400/day OTE, +£400 bonus per £100 RPD bracket
 // Non-Senior: £1,200/day min, £1,400/day OTE, same step but higher base
@@ -3277,17 +3292,39 @@ const BC_CORE_BRACKETS = {
 };
 
 function bcIsCore(){ return _currentDivKey === 'core'; }
-function bcMinRPD(){ return bcIsCore() ? 1200 : 1000; }
-function bcOteRPD(){ return bcIsCore() ? 1400 : null; }
+function bcIsGuidance(){ return _currentDivKey === 'guidance'; }
+function bcMinRPD(){
+  if(bcIsCore()) return 1200;
+  if(bcIsGuidance()) return 650;
+  return 1000;
+}
+function bcOteRPD(){
+  if(bcIsCore()) return 1400;
+  if(bcIsGuidance()) return 850;
+  return null;
+}
 
 function bcBonusForRPD(rpd, type){
   const minRPD = bcMinRPD();
   if(rpd < minRPD) return { bonus: 0, label: '< Min', bracket: 0 };
+
+  if(bcIsGuidance()){
+    // Guidance brackets start at £650 in £100 steps
+    const table = BC_GUIDANCE_BRACKETS[type] || BC_GUIDANCE_BRACKETS.nonsenior;
+    const bracket = Math.floor(rpd / 100) * 100;
+    const maxBracket = table[table.length-1][0];
+    const lookupBracket = Math.min(bracket, maxBracket);
+    // Find closest bracket (floor to nearest £100 step)
+    const row = table.find(r => r[0] === lookupBracket)
+      || [...table].reverse().find(r => r[0] <= lookupBracket)
+      || table[table.length-1];
+    return { bonus: row[1], bracket: row[0], capped: bracket > maxBracket };
+  }
+
   const bracket = Math.floor(rpd / 100) * 100;
 
   if(bcIsCore()){
     const table = BC_CORE_BRACKETS[type] || BC_CORE_BRACKETS.nonsenior;
-    // Find matching bracket row, cap at max
     const maxBracket = table[table.length-1][0];
     const lookupBracket = Math.min(bracket, maxBracket);
     const row = table.find(r => r[0] === lookupBracket) || table[table.length-1];
@@ -3307,9 +3344,14 @@ function bcMonthlyTargets(type){
     return [{pct:25,rev:Math.round(fullTarget*.25)},{pct:50,rev:Math.round(fullTarget*.5)},{pct:75,rev:Math.round(fullTarget*.75)},{pct:100,rev:fullTarget}];
   }
   if(bcIsCore()){
-    // Fallback: derive from OTE (£1,400/day) and the month's working days
     const wdm = parseInt(document.getElementById('bcWorkingDaysMonth')?.value)||22;
     const oteTarget = 1400 * wdm;
+    return [{pct:25,rev:Math.round(oteTarget*.25)},{pct:50,rev:Math.round(oteTarget*.5)},{pct:75,rev:Math.round(oteTarget*.75)},{pct:100,rev:oteTarget}];
+  }
+  if(bcIsGuidance()){
+    // Fallback: derive from OTE (£850/day) and the month's working days
+    const wdm = parseInt(document.getElementById('bcWorkingDaysMonth')?.value)||22;
+    const oteTarget = 850 * wdm;
     return [{pct:25,rev:Math.round(oteTarget*.25)},{pct:50,rev:Math.round(oteTarget*.5)},{pct:75,rev:Math.round(oteTarget*.75)},{pct:100,rev:oteTarget}];
   }
   // Other divisions fallback
@@ -3422,7 +3464,7 @@ function bcRecalc(){
 
   const currentBracket = Math.floor(rpd/100)*100;
   const tierRows = [];
-  const startRpd = Math.max(bcMinRPD(), currentBracket - 500);
+  const startRpd = Math.max(bcMinRPD(), currentBracket - 400);
   const endRpd   = currentBracket + 500;
   for(let r = startRpd; r <= endRpd; r += 100){
     const { bonus: b } = bcBonusForRPD(r, type);
@@ -3475,6 +3517,11 @@ function bcRecalc(){
         <div class="bc-res-val ${rpd>=1400?'green':rpd>=1200?'amber':'red'}">${rpd>=1400?'🎯 OTE Hit':rpd>=1200?'✅ Bonus Active':'❌ Below Gateway'}</div>
         <div class="bc-res-sub">${rpd>=1400?'At or above £1,400/day OTE':rpd>=1200?'Above £1,200/day minimum — push to £1,400 OTE':'Need £1,200/day to earn any bonus'}</div>
       </div>` : ''}
+      ${bcIsGuidance() ? `<div class="bc-res-card" style="border-color:${rpd>=850?'var(--green)':rpd>=650?'var(--amber)':'var(--red)'}20">
+        <div class="bc-res-label">Guidance Gateway Status</div>
+        <div class="bc-res-val ${rpd>=850?'green':rpd>=650?'amber':'red'}">${rpd>=850?'🎯 OTE Hit':rpd>=650?'✅ Bonus Active':'❌ Below Gateway'}</div>
+        <div class="bc-res-sub">${rpd>=850?'At or above £850/day OTE':rpd>=650?'Above £650/day minimum — push to £850 OTE':'Need £650/day to earn any bonus'}</div>
+      </div>` : ''}
     </div>
 
     <div class="bc-next-bracket${alreadyAtNext?' bc-achieved':''}">
@@ -3508,7 +3555,7 @@ function bcRecalc(){
       <div class="bc-tier-header">
         <div>
           <div class="bc-tier-title">📊 Bonus Tier Table</div>
-          <div class="bc-tier-sub">${type === 'senior' ? 'Senior' : 'Non-Senior'} scale${bcIsCore() ? ' · Gateway £1,200/day · OTE £1,400/day' : ' · ±5 brackets from your position'}</div>
+          <div class="bc-tier-sub">${type === 'senior' ? 'Senior' : 'Non-Senior'} scale${bcIsCore() ? ' · Gateway £1,200/day · OTE £1,400/day' : bcIsGuidance() ? ' · Gateway £650/day · OTE £850/day' : ' · ±5 brackets from your position'}</div>
         </div>
         <div style="font-size:11px;color:var(--text2);font-family:var(--fm)">100% Target</div>
       </div>
@@ -3525,8 +3572,8 @@ function bcRecalc(){
           ${tierRows.map(row => {
             const uplift    = row.bonus - bonusTotal;
             const revDiff   = (row.rpd * yourDays) - revenue;
-            const isOte     = bcIsCore() && row.rpd === 1400;
-            const isMin     = bcIsCore() && row.rpd === 1200;
+            const isOte     = (bcIsCore() && row.rpd === 1400) || (bcIsGuidance() && row.rpd === 850);
+            const isMin     = (bcIsCore() && row.rpd === 1200) || (bcIsGuidance() && row.rpd === 650);
             return `<tr class="bc-tier-tr${row.isYou ? ' current-tier' : ''}">
               <td class="bc-tier-td">
                 £${row.rpd.toLocaleString()}
