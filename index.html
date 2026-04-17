@@ -3260,26 +3260,62 @@ function bcSetType(t){
   bcRecalc();
 }
 
+// ── Core incentive bracket tables (Cavendish Core Guidance) ─────
+// Senior: £1,200/day min, £1,400/day OTE, +£400 bonus per £100 RPD bracket
+// Non-Senior: £1,200/day min, £1,400/day OTE, same step but higher base
+const BC_CORE_BRACKETS = {
+  senior: [
+    [1200,2000],[1300,2400],[1400,2800],[1500,3200],[1600,3600],
+    [1700,4000],[1800,4400],[1900,4800],[2000,5200],[2100,5600],
+    [2200,6000],[2300,6400]
+  ],
+  nonsenior: [
+    [1200,2667],[1300,3067],[1400,3467],[1500,3867],[1600,4267],
+    [1700,4667],[1800,5067],[1900,5467],[2000,5867],[2100,6267],
+    [2200,6667],[2300,7067]
+  ]
+};
+
+function bcIsCore(){ return _currentDivKey === 'core'; }
+function bcMinRPD(){ return bcIsCore() ? 1200 : 1000; }
+function bcOteRPD(){ return bcIsCore() ? 1400 : null; }
+
 function bcBonusForRPD(rpd, type){
-  // Clamp to valid range
-  if(rpd < 1000) return { bonus: 0, label: '< Min' };
+  const minRPD = bcMinRPD();
+  if(rpd < minRPD) return { bonus: 0, label: '< Min', bracket: 0 };
   const bracket = Math.floor(rpd / 100) * 100;
-  const base   = type === 'senior' ? 517 : 1100;
-  const bonus  = base + (bracket / 100 - 10) * 400;
+
+  if(bcIsCore()){
+    const table = BC_CORE_BRACKETS[type] || BC_CORE_BRACKETS.nonsenior;
+    // Find matching bracket row, cap at max
+    const maxBracket = table[table.length-1][0];
+    const lookupBracket = Math.min(bracket, maxBracket);
+    const row = table.find(r => r[0] === lookupBracket) || table[table.length-1];
+    return { bonus: row[1], bracket: lookupBracket, capped: bracket > maxBracket };
+  }
+
+  // Other divisions — original formula
+  const base  = type === 'senior' ? 517 : 1100;
+  const bonus = base + (bracket / 100 - 10) * 400;
   return { bonus: Math.max(0, bonus), bracket };
 }
 
 function bcMonthlyTargets(type){
-  // Use the person's actual monthly target if available, otherwise fall back to spreadsheet defaults
-  const fullTarget = _bcMonthlyTarget > 0 ? _bcMonthlyTarget : (type === 'senior' ? 16800 : null);
-  if(type === 'senior'){
-    const ft = fullTarget || 16800;
-    return [{pct:25,rev:Math.round(ft*.25)},{pct:50,rev:Math.round(ft*.5)},{pct:75,rev:Math.round(ft*.75)},{pct:100,rev:ft}];
-  }
+  // For Core: OTE is £1,400/day — use configured target if set, else infer from OTE
+  const fullTarget = _bcMonthlyTarget > 0 ? _bcMonthlyTarget : null;
   if(fullTarget){
     return [{pct:25,rev:Math.round(fullTarget*.25)},{pct:50,rev:Math.round(fullTarget*.5)},{pct:75,rev:Math.round(fullTarget*.75)},{pct:100,rev:fullTarget}];
   }
-  // Non-senior fallback if no target configured
+  if(bcIsCore()){
+    // Fallback: derive from OTE (£1,400/day) and the month's working days
+    const wdm = parseInt(document.getElementById('bcWorkingDaysMonth')?.value)||22;
+    const oteTarget = 1400 * wdm;
+    return [{pct:25,rev:Math.round(oteTarget*.25)},{pct:50,rev:Math.round(oteTarget*.5)},{pct:75,rev:Math.round(oteTarget*.75)},{pct:100,rev:oteTarget}];
+  }
+  // Other divisions fallback
+  if(type === 'senior'){
+    return [{pct:25,rev:Math.round(16800*.25)},{pct:50,rev:Math.round(16800*.5)},{pct:75,rev:Math.round(16800*.75)},{pct:100,rev:16800}];
+  }
   return [{pct:25,rev:600},{pct:50,rev:1200},{pct:75,rev:1800},{pct:100,rev:null}];
 }
 
@@ -3336,32 +3372,39 @@ function bcRecalc(){
   const rpd = revenue / yourDays;
 
   // ── Below minimum: show motivational message instead of full calculations ──
-  if(rpd < 1000){
+  const _bcMinRPD = bcMinRPD();
+  const _bcOteRPD = bcOteRPD();
+  if(rpd < _bcMinRPD){
     const needed1k   = Math.ceil((1000 * yourDays) - revenue);
-    const needed1200 = Math.ceil((1200 * yourDays) - revenue);
-    const pct        = Math.min(99, Math.round((rpd / 1000) * 100));
+    const needed1200 = Math.ceil((_bcMinRPD * yourDays) - revenue);
+    const pct        = Math.min(99, Math.round((rpd / _bcMinRPD) * 100));
     area.innerHTML = `
       <div style="background:linear-gradient(135deg,rgba(251,184,58,.1),rgba(251,184,58,.04));border:1.5px solid rgba(251,184,58,.3);border-radius:16px;padding:28px 32px;text-align:center;position:relative;overflow:hidden;">
         <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(251,184,58,.12),transparent 70%);pointer-events:none;"></div>
         <div style="font-size:40px;margin-bottom:12px;">💪</div>
         <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px;">Keep pushing!</div>
-        <div style="font-size:13px;color:var(--text2);font-family:var(--fm);margin-bottom:24px;">You're at ${bcFmt(rpd)}/day — just below the £1,000 bonus threshold</div>
+        <div style="font-size:13px;color:var(--text2);font-family:var(--fm);margin-bottom:24px;">You're at ${bcFmt(rpd)}/day — just below the ${bcFmt(_bcMinRPD)} bonus gateway</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:480px;margin:0 auto 24px;">
-          <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px 16px;">
+          ${!bcIsCore() ? `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px 16px;">
             <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">To hit £1,000/day</div>
             <div style="font-size:26px;font-weight:700;font-family:var(--fm);color:var(--amber);">${bcFmt(needed1k)}</div>
             <div style="font-size:11px;color:var(--text2);font-family:var(--fm);margin-top:4px;">more revenue needed</div>
-          </div>
+          </div>` : ''}
           <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px 16px;">
-            <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">To hit £1,200/day</div>
-            <div style="font-size:26px;font-weight:700;font-family:var(--fm);color:var(--blue);">${bcFmt(needed1200)}</div>
+            <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">To hit ${bcFmt(_bcMinRPD)}/day gateway</div>
+            <div style="font-size:26px;font-weight:700;font-family:var(--fm);color:var(--blue);">${bcFmt(Math.ceil((_bcMinRPD * yourDays) - revenue))}</div>
             <div style="font-size:11px;color:var(--text2);font-family:var(--fm);margin-top:4px;">more revenue needed</div>
           </div>
+          ${_bcOteRPD ? `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px 16px;">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">To hit OTE ${bcFmt(_bcOteRPD)}/day</div>
+            <div style="font-size:26px;font-weight:700;font-family:var(--fm);color:var(--green);">${bcFmt(Math.ceil((_bcOteRPD * yourDays) - revenue))}</div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--fm);margin-top:4px;">more revenue needed</div>
+          </div>` : ''}
         </div>
         <div style="background:var(--surface2);border-radius:10px;height:10px;overflow:hidden;max-width:480px;margin:0 auto 8px;">
-          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--amber),rgba(251,184,58,.5));border-radius:10px;transition:width .8s cubic-bezier(.4,0,.2,1);"></div>
+          <div style="height:100%;width:${Math.min(99,Math.round((rpd/_bcMinRPD)*100))}%;background:linear-gradient(90deg,var(--amber),rgba(251,184,58,.5));border-radius:10px;transition:width .8s cubic-bezier(.4,0,.2,1);"></div>
         </div>
-        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);">${pct}% of the way to £1,000/day · Current RPD: ${bcFmt(rpd)}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);">${Math.min(99,Math.round((rpd/_bcMinRPD)*100))}% of the way to gateway · Current RPD: ${bcFmt(rpd)}</div>
       </div>
     `;
     return;
@@ -3379,7 +3422,7 @@ function bcRecalc(){
 
   const currentBracket = Math.floor(rpd/100)*100;
   const tierRows = [];
-  const startRpd = Math.max(1000, currentBracket - 500);
+  const startRpd = Math.max(bcMinRPD(), currentBracket - 500);
   const endRpd   = currentBracket + 500;
   for(let r = startRpd; r <= endRpd; r += 100){
     const { bonus: b } = bcBonusForRPD(r, type);
@@ -3427,6 +3470,11 @@ function bcRecalc(){
         <div class="bc-res-val ${fullTarget>0?(monthlyRev>=fullTarget?'green':'amber'):'amber'}">${bcFmt(monthlyRev)}</div>
         <div class="bc-res-sub">If RPD holds for all ${wdm} days</div>
       </div>
+      ${bcIsCore() ? `<div class="bc-res-card" style="border-color:${rpd>=1400?'var(--green)':rpd>=1200?'var(--amber)':'var(--red)'}20">
+        <div class="bc-res-label">Core Gateway Status</div>
+        <div class="bc-res-val ${rpd>=1400?'green':rpd>=1200?'amber':'red'}">${rpd>=1400?'🎯 OTE Hit':rpd>=1200?'✅ Bonus Active':'❌ Below Gateway'}</div>
+        <div class="bc-res-sub">${rpd>=1400?'At or above £1,400/day OTE':rpd>=1200?'Above £1,200/day minimum — push to £1,400 OTE':'Need £1,200/day to earn any bonus'}</div>
+      </div>` : ''}
     </div>
 
     <div class="bc-next-bracket${alreadyAtNext?' bc-achieved':''}">
@@ -3460,7 +3508,7 @@ function bcRecalc(){
       <div class="bc-tier-header">
         <div>
           <div class="bc-tier-title">📊 Bonus Tier Table</div>
-          <div class="bc-tier-sub">${type === 'senior' ? 'Senior' : 'Non-Senior'} scale · ±5 brackets from your position</div>
+          <div class="bc-tier-sub">${type === 'senior' ? 'Senior' : 'Non-Senior'} scale${bcIsCore() ? ' · Gateway £1,200/day · OTE £1,400/day' : ' · ±5 brackets from your position'}</div>
         </div>
         <div style="font-size:11px;color:var(--text2);font-family:var(--fm)">100% Target</div>
       </div>
@@ -3477,8 +3525,15 @@ function bcRecalc(){
           ${tierRows.map(row => {
             const uplift    = row.bonus - bonusTotal;
             const revDiff   = (row.rpd * yourDays) - revenue;
+            const isOte     = bcIsCore() && row.rpd === 1400;
+            const isMin     = bcIsCore() && row.rpd === 1200;
             return `<tr class="bc-tier-tr${row.isYou ? ' current-tier' : ''}">
-              <td class="bc-tier-td">£${row.rpd.toLocaleString()}${row.isYou ? '<span class="bc-you-badge">YOU</span>' : ''}</td>
+              <td class="bc-tier-td">
+                £${row.rpd.toLocaleString()}
+                ${row.isYou ? '<span class="bc-you-badge">YOU</span>' : ''}
+                ${isOte && !row.isYou ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,.15);color:var(--green);padding:1px 5px;border-radius:6px;margin-left:4px;letter-spacing:.04em">OTE</span>' : ''}
+                ${isMin && !row.isYou ? '<span style="font-size:9px;font-weight:700;background:rgba(94,156,245,.15);color:var(--blue);padding:1px 5px;border-radius:6px;margin-left:4px;letter-spacing:.04em">MIN</span>' : ''}
+              </td>
               <td class="bc-tier-td" style="color:var(--amber);font-weight:${row.isYou?'700':'400'}">${bcFmt(row.bonus)}</td>
               <td class="bc-tier-td" style="color:${uplift>0?'var(--green)':uplift<0?'var(--red)':'var(--text3)'}">
                 ${uplift > 0 ? '+' : ''}${uplift !== 0 ? bcFmt(uplift) : '—'}
