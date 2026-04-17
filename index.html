@@ -5730,9 +5730,11 @@ function calcTeamCOP(mk, memberNames, teamKey){
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function renderDashboard(){
+  _syncPeopleFromUsers(); // ensure division consultants are always current
   const mk     = APP.activeMonth;
   const stats  = calcStats(mk);
-  const active = stats.filter(s=>s.target>0);
+  const active = stats.filter(s=>s.target>0);   // used for KPI totals only
+  const allPpl = stats;                          // shown on cards — everyone in this division
   const teamTgt  = active.reduce((s,p)=>s+p.target,0);
   const totalRev = active.reduce((s,p)=>s+p.revMTD,0);
   const totalNM  = active.reduce((s,p)=>s+p.nmMTD,0);
@@ -5753,7 +5755,7 @@ function renderDashboard(){
   // COP — same day-by-day loop as teams tab (matches MTD Diff at bottom of teams table)
   const today2   = _localDateStr(new Date());
   const wdDates  = workingDatesInMonth(mk).filter(ds => ds <= today2);
-  const allPeople= APP.people.filter(p=>personTargetForMonth(p,mk)>0);
+  const allPeople= APP.people.filter(p=>personTargetForMonth(p,mk)>0); // COP run-rate calc — targets only
 
   // Build entry lookup for all active people
   const entries  = getEntries(mk);
@@ -5942,11 +5944,11 @@ function renderDashboard(){
     teamSummaryRow.innerHTML = [...teamCards, totalCard].join('');
   }
 
-  if(active.length===0){
+  if(allPpl.length===0){
     document.getElementById('cardsGrid').innerHTML=`<div class="empty" style="grid-column:1/-1">
-      <div class="empty-icon">📊</div><div style="font-size:14px">No consultants yet. Go to Settings to add your team.</div></div>`;
+      <div class="empty-icon">📊</div><div style="font-size:14px">No consultants found for this division. Add users with this division assigned in Settings → Users & Roles.</div></div>`;
   } else {
-    document.getElementById('cardsGrid').innerHTML=active.map(p=>
+    document.getElementById('cardsGrid').innerHTML=allPpl.map(p=>
       typeof _buildEnhancedCard==='function'
         ? _buildEnhancedCard(p, mk)
         : p.name
@@ -17100,6 +17102,25 @@ function _renderTicker(){
 const _origRenderDashboardCards = null; // we patch inline
 
 function _buildEnhancedCard(p, mk){
+  const sn = p.name.replace(/'/g,"\'");
+  const presStatus = typeof _getPresence==='function' ? _getPresence(p.name) : 'offline';
+
+  // No target configured yet — show a clean placeholder card
+  if(!p.target || p.target === 0){
+    return `<div class="p-card" style="opacity:.8;border-style:dashed;cursor:pointer" onclick="openPerson('${sn}',this)">
+      <div class="p-name" style="display:flex;align-items:center;gap:5px;margin-bottom:12px">
+        <span class="presence-dot ${presStatus}" data-name="${p.name}" title="${presStatus}"></span>
+        ${p.name}
+      </div>
+      <div style="text-align:center;padding:16px 0;color:var(--text3)">
+        <div style="font-size:22px;margin-bottom:8px">🎯</div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">No target set</div>
+        <div style="font-size:10px;font-family:var(--fm)">Set in Settings → Monthly Targets</div>
+      </div>
+      ${p.revMTD > 0 ? `<div class="p-row" style="margin-top:8px"><span class="p-lbl">Revenue logged</span><span class="p-val g">£${Math.round(p.revMTD).toLocaleString()}</span></div>` : ''}
+    </div>`;
+  }
+
   const rbc      = p.riskAhead?'#2dce89':p.revPct>=75?'#fbb83a':'#f5365c';
   const nbc      = p.nmAhead ?'#2dce89':p.nmPct>=75 ?'#fbb83a':'#f5365c';
   const cardCls  = p.riskAhead&&p.nmAhead?'ab':!p.riskAhead&&!p.nmAhead?'bb':'mx';
@@ -17110,7 +17131,6 @@ function _buildEnhancedCard(p, mk){
   const todayRev   = typeof _getTodayRevFor==='function' ? _getTodayRevFor(p.name, mk) : 0;
   const pb         = typeof _getPersonalBest==='function' ? _getPersonalBest(p.name) : 0;
   const isPB       = todayRev>0 && todayRev>=pb;
-  const presStatus = typeof _getPresence==='function' ? _getPresence(p.name) : 'offline';
   const trafficCls = typeof _copTrafficClass==='function' ? _copTrafficClass(p) : '';
 
   const badges = typeof _getEarnedBadges==='function' ? _getEarnedBadges(p,{streak,isPB}) : [];
@@ -17118,8 +17138,6 @@ function _buildEnhancedCard(p, mk){
     const isNew = typeof _markBadgeSeen==='function' ? _markBadgeSeen(p.name, b.id) : false;
     return `<span class="badge-pill earned${isNew?' badge-pop':''}" title="${b.label}">${b.icon} ${b.label}</span>`;
   }).join('');
-
-  const sn = p.name.replace(/'/g,"\\'");
 
   return `<div class="p-card ${cardCls}${trafficCls?' '+trafficCls:''}${isPB?' pb-glow':''}"
     onclick="openPerson('${sn}',this)" style="cursor:pointer" title="Click to view full profile">
@@ -17175,7 +17193,7 @@ function _animateBars(){
 function _enhanceDashboardCards(){
   const mk     = document.getElementById('globalMonthSel')?.value || APP.activeMonth;
   const stats  = calcStats(mk);
-  const active = stats.filter(s=>s.target>0);
+  const active = stats; // show all people including no-target
   if(!active.length) return;
   const grid = document.getElementById('cardsGrid');
   if(!grid||grid.querySelector('.empty')) return;
