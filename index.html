@@ -2273,48 +2273,22 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
         <button class="btn btn-s" onclick="closeSettingsSub()" style="font-size:12px">← Back</button>
         <div>
           <div class="section-title">🎯 Monthly Targets</div>
-          <div class="section-sub">Manage consultants, NM rates, months and per-month targets</div>
+          <div class="section-sub">Set per-month targets — consultants sync automatically from Users &amp; Roles</div>
         </div>
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
-
-      <!-- Consultants -->
-      <div class="set-card">
-        <div class="set-title">👤 Consultants</div>
-        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);margin-bottom:14px">Add or rename consultants. Set targets per month below.</div>
-        <div id="personConfigRows"></div>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <input type="text" id="newName" placeholder="Consultant name" style="flex:1">
-          <button class="btn btn-p" onclick="addPerson()" style="padding:8px 14px;font-size:13px;">+ Add</button>
-        </div>
-      </div>
-
-      <!-- NM Rate per consultant -->
-      <div class="set-card">
-        <div class="set-title">📊 NM Rate</div>
-        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);margin-bottom:4px;line-height:1.6">Needs Met target per working day. Set a default for all, or override per consultant.</div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-          <div>
-            <div class="field-lbl" style="margin-bottom:4px">Default (all consultants)</div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="number" id="nmRateInput" step="0.25" min="0.25" max="10" style="width:90px"
-                onchange="APP.nmRate=parseFloat(this.value)||1.75;saveApp();renderNmRateRows();showToast('Default NM rate updated')">
-              <span style="font-size:12px;color:var(--text3);font-family:var(--fm)">per day</span>
-            </div>
-          </div>
-        </div>
-        <div id="nmRateRows"></div>
-      </div>
-
-      <!-- Month management -->
+        <div style="display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:20px;">
       <div class="set-card">
         <div class="set-title">📅 Month Management</div>
-        <div style="margin-bottom:12px"><div class="field-lbl">Active month</div><select id="activeMonthSel" onchange="setActiveMonth()"></select></div>
-        <button class="btn btn-p btn-w" onclick="openNewMonthModal()">+ Create new month</button>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);margin-bottom:12px">
+          Consultants sync automatically from Users &amp; Roles for this division. Create a month then set each person's targets below.
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div><div class="field-lbl">Active month</div><select id="activeMonthSel" onchange="setActiveMonth()"></select></div>
+          <button class="btn btn-p" onclick="openNewMonthModal()" style="margin-top:18px">+ Create new month</button>
+        </div>
       </div>
-
     </div>
 
     <!-- Monthly targets table — full width -->
@@ -4286,11 +4260,12 @@ function nmRate(){ return (APP.nmRate != null ? APP.nmRate : 1.75); }
 // Global p.riskPerDay / p.daysT are legacy fields, not used for display.
 // If no override exists for this month, returns 0/0 (unset).
 function getPersonForMonth(p, mk){
-  if(!mk) return {...p};
+  if(!mk) return {...p, nmPerDay: nmRateFor(p.name||'')};
   const ovr = (APP.monthOverrides && APP.monthOverrides[mk] && APP.monthOverrides[mk][p.name]) || {};
   return {
     ...p,
     riskPerDay: ovr.riskPerDay !== undefined ? ovr.riskPerDay : (p.riskPerDay || 0),
+    nmPerDay:   ovr.nmPerDay   !== undefined ? ovr.nmPerDay   : nmRateFor(p.name||''),
     daysT:      ovr.daysT      !== undefined ? ovr.daysT      : (p.daysT || 0)
   };
 }
@@ -4427,14 +4402,14 @@ function calcStats(monthKey){
     const sickWorkDays  = getSickWorkDayCount(monthKey, p.name);
     const effectiveDays = Math.max(0, (ep.daysT||0) - sickWorkDays);
     const target   = Math.round((ep.riskPerDay||0) * effectiveDays);
-    const nmTarget = parseFloat((effectiveDays * nmRateFor(p.name||'')).toFixed(2));
+    const nmTarget = parseFloat((effectiveDays * (ep.nmPerDay||nmRateFor(p.name||''))).toFixed(2));
 
     // calendar working days elapsed for this person (holidays excluded)
     const calDays = calWorkDays(monthKey, p.name);
 
     // ── COP: day-by-day cumulative run rate vs actual (matches individual card MTD diff)
     // positive = ahead, negative = behind — sick days excluded from run rate accumulation
-    const _nmR     = nmRateFor(p.name||'');
+    const _nmR     = ep.nmPerDay||nmRateFor(p.name||'');
     const _today2  = _localDateStr(new Date());
     const _wdElapsed = workingDatesInMonth(monthKey).filter(ds => ds <= _today2);
     let _cumRR = 0, _cumNmRR = 0;
@@ -4450,7 +4425,7 @@ function calcStats(monthKey){
 
     // ── percentages ──────────────────────────────────────────────
     const revPct = target>0   ? Math.round(revMTD  / target   * 100) : 0;
-    const nmTargetFixed = effectiveDays * nmRateFor(p.name||'');
+    const nmTargetFixed = effectiveDays * (ep.nmPerDay||nmRateFor(p.name||''));
     const nmPct  = nmTargetFixed>0 ? Math.round(nmMTD / nmTargetFixed * 100) : 0;
 
     const riskAhead = copRev >= 0;
@@ -5672,7 +5647,7 @@ function renderDashboard(){
   }
 
   // NM target = sum of each active person's daysT × 1.75
-  const nmTarget = active.reduce((s,p)=>s+(getPersonForMonth(p,mk).daysT||0)*nmRate(), 0);
+  const nmTarget = active.reduce((s,p)=>{ const ep2=getPersonForMonth(p,mk); return s+(ep2.daysT||0)*(ep2.nmPerDay||nmRate()); }, 0);
 
   // COP — same day-by-day loop as teams tab (matches MTD Diff at bottom of teams table)
   const today2   = _localDateStr(new Date());
@@ -5776,7 +5751,7 @@ function renderDashboard(){
             const rpd = ep.riskPerDay||0;
             const personOvr = ((APP.personRROverrides||{})[name]||{})[mk]?.[todayStr];
             todayRevRR += personOvr!==undefined ? personOvr : rpd;
-            todayNmRR  += nmRate();
+            const _ep2=getPersonForMonth(person,mk); todayNmRR  += (_ep2.nmPerDay||nmRate());
           }
         });
         const rrOvr = ((APP.rrOverrides||{})[key]||{})[mk]?.[todayStr];
@@ -6351,17 +6326,32 @@ function closeSettingsSub(){
   if(hub) hub.style.display = '';
 }
 
+function _syncPeopleFromUsers(){
+  const divConsultants = Object.values(_allUsers||{})
+    .filter(u => u.role==='consultant' && u.divKey===_currentDivKey)
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  if(!APP.people) APP.people = [];
+  let changed = false;
+  divConsultants.forEach(u => {
+    if(!APP.people.find(p=>p.name===u.name)){
+      APP.people.push({name:u.name, riskPerDay:0, daysT:0});
+      changed = true;
+    }
+  });
+  const divNames = new Set(divConsultants.map(u=>u.name));
+  APP.people = APP.people.filter(p => {
+    if(divNames.has(p.name)) return true;
+    const hasData = Object.values(APP.months||{}).some(m=>(m.entries||[]).some(e=>e.name===p.name));
+    return hasData;
+  });
+  if(changed) saveApp();
+}
+
 function _renderTargetsSub(){
+  _syncPeopleFromUsers();
   populateAllSelects();
-  // Make sure activeMonthSel is up to date (it lives in the targets sub-page now)
   const amSel = document.getElementById('activeMonthSel');
   if(amSel) amSel.value = APP.activeMonth;
-  // NM Rate default
-  const nmEl = document.getElementById('nmRateInput');
-  if(nmEl) nmEl.value = nmRate();
-  // Per-consultant rows
-  _renderPersonConfigRows();
-  renderNmRateRows();
   renderMonthlyTargets();
 }
 
@@ -6595,9 +6585,10 @@ function _renderMtConsultants(mk){
   }
 
   // Column headers
-  html += `<div style="display:grid;grid-template-columns:130px 100px 90px 110px 36px;gap:8px;margin-bottom:8px;">
+  html += `<div style="display:grid;grid-template-columns:1fr 110px 90px 90px 160px 36px;gap:8px;margin-bottom:8px;">
     <div class="th">Name</div>
     <div class="th">Risk/day (£)</div>
+    <div class="th">NM/day</div>
     <div class="th">Work days</div>
     <div class="th">Monthly target</div>
     <div></div>
@@ -6622,27 +6613,39 @@ function _renderMtConsultants(mk){
     const tgtColor = hasAnyOvr ? 'var(--accent)' : 'var(--text3)';
     const tgtText  = effTgt !== null ? '£'+effTgt.toLocaleString() : '—';
 
-    html += `<div class="pcfg-row" style="grid-template-columns:130px 100px 90px 110px 36px">
+    const hasOvrNm   = ovr.nmPerDay   !== undefined;
+    const nmVal      = hasOvrNm   ? ovr.nmPerDay   : '';
+    const effNm      = hasOvrNm   ? ovr.nmPerDay   : nmRateFor(p.name||'');
+    const effNmTgt   = (hasOvrRpd||hasOvrDays||hasOvrNm) ? parseFloat((effDays * effNm).toFixed(2)) : null;
+    const hasAnyOvr2 = hasOvrRpd || hasOvrDays || hasOvrNm;
+
+    html += `<div class="pcfg-row" style="grid-template-columns:1fr 110px 90px 90px 160px 36px">
       <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px">
         ${p.name}
-        ${hasAnyOvr ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,0.15);color:var(--green);padding:2px 6px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase">set</span>' : ''}
+        ${hasAnyOvr2 ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,0.15);color:var(--green);padding:2px 6px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase">set</span>' : ''}
       </div>
       <div class="inp-wrap">
         <span class="inp-pre">£</span>
         <input type="number" class="inp-pl" step="50" min="0"
-          value="${rpdVal}"
-          placeholder="e.g. 1200"
+          value="${rpdVal}" placeholder="e.g. 1200"
           data-mto-id="${mk}__${p.name}__rpd"
           oninput="saveMonthOverride('${mk}','${safeName}','riskPerDay',this.value)">
       </div>
+      <input type="number" step="0.25" min="0" max="20"
+        value="${nmVal}" placeholder="${effNm.toFixed(2)}"
+        data-mto-id="${mk}__${p.name}__nm"
+        oninput="saveMonthOverride('${mk}','${safeName}','nmPerDay',this.value)"
+        title="NM per working day for ${p.name}">
       <input type="number" step="0.5" min="0"
-        value="${daysVal}"
-        placeholder="e.g. 21"
+        value="${daysVal}" placeholder="e.g. 21"
         data-mto-id="${mk}__${p.name}__days"
         oninput="saveMonthOverride('${mk}','${safeName}','daysT',this.value)">
-      <div id="mto-tgt-${mk}-${p.name.replace(/\s+/g,'_')}" style="font-size:13px;font-weight:700;font-family:var(--fm);color:${tgtColor};display:flex;align-items:center">${tgtText}</div>
+      <div id="mto-tgt-${mk}-${p.name.replace(/\s+/g,'_')}" style="font-size:12px;font-weight:700;font-family:var(--fm);color:${hasAnyOvr2?'var(--green)':'var(--text3)'};display:flex;flex-direction:column;justify-content:center;gap:2px">
+        <span>${effTgt!==null ? '£'+effTgt.toLocaleString() : '—'}</span>
+        <span style="font-weight:400;color:var(--text3)">${effNmTgt!==null ? effNmTgt.toFixed(1)+' NM' : ''}</span>
+      </div>
       <button class="icon-btn" title="Clear this month's targets"
-        style="${hasAnyOvr ? '' : 'opacity:.2;pointer-events:none'}"
+        style="${hasAnyOvr2 ? '' : 'opacity:.2;pointer-events:none'}"
         onclick="clearMonthOverride('${mk}','${safeName}')">↺</button>
     </div>`;
   });
@@ -6691,16 +6694,19 @@ function saveMonthOverride(mk, name, field, rawVal){
   const p    = APP.people.find(x=>x.name===name);
   if(!p) return;
   const ep   = getPersonForMonth(p, mk);
-  const hasR = (APP.monthOverrides[mk]||{})[name]?.riskPerDay !== undefined;
-  const hasD = (APP.monthOverrides[mk]||{})[name]?.daysT !== undefined;
+  const mo   = (APP.monthOverrides[mk]||{})[name]||{};
+  const hasR = mo.riskPerDay !== undefined;
+  const hasD = mo.daysT      !== undefined;
+  const hasN = mo.nmPerDay   !== undefined;
   const tgtEl = document.getElementById('mto-tgt-'+mk+'-'+name.replace(/\s+/g,'_'));
   if(tgtEl){
-    if(hasR || hasD){
-      tgtEl.textContent = '£'+(Math.round((ep.riskPerDay||0)*(ep.daysT||0))).toLocaleString();
+    if(hasR||hasD||hasN){
+      const revTgt = Math.round((ep.riskPerDay||0)*(ep.daysT||0));
+      const nmTgt  = parseFloat(((ep.daysT||0)*(ep.nmPerDay||nmRate())).toFixed(1));
+      tgtEl.innerHTML = `<span>£${revTgt.toLocaleString()}</span><span style="font-weight:400;color:var(--text3)">${nmTgt} NM</span>`;
       tgtEl.style.color = 'var(--green)';
     } else {
-      tgtEl.textContent = '—';
-      tgtEl.style.color = 'var(--text3)';
+      tgtEl.innerHTML = '—'; tgtEl.style.color = 'var(--text3)';
     }
   }
   // Update footer team total
@@ -6724,6 +6730,7 @@ function _refreshMtFooter(mk){
   footer.innerHTML = `
     <div style="font-size:11px;color:var(--text3);font-family:var(--fm)">Team total</div>
     <div style="font-size:20px;font-weight:700;font-family:var(--fm);color:${configuredCount>0?'var(--green)':'var(--text3)'}">${configuredCount>0?'£'+teamEffTgt.toLocaleString():'—'}</div>
+    ${configuredCount>0?`<div style="font-size:14px;font-weight:600;font-family:var(--fm);color:var(--blue)">${people.reduce((s,p)=>{const ep=getPersonForMonth(p,mk);return s+parseFloat(((ep.daysT||0)*(ep.nmPerDay||nmRate())).toFixed(1));},0).toFixed(1)} NM target</div>`:``}
     <div style="font-size:11px;color:var(--text3);font-family:var(--fm)">${configuredCount>0?configuredCount+' consultant'+(configuredCount!==1?'s':'')+' configured':'Fill in the fields above to set targets for this month'}</div>
     ${configuredCount>0?`<button class="btn btn-s" style="font-size:11px;padding:5px 10px;margin-left:auto" onclick="clearAllMonthOverrides('${mk}')">Reset all</button>`:''}
   `;
@@ -13644,7 +13651,7 @@ _dbRef.once('value').then(snap=>{
   const data = snap.val();
   if(data){ APP = data; }
   _applyDefaults();
-  // Restore this user's local month preference — must run AFTER _applyDefaults
+  _syncPeopleFromUsers();
   _initLocalViewMonth();
   setSyncStatus('live');
   populateAllSelects();
@@ -13673,6 +13680,7 @@ _dbRef.once('value').then(snap=>{
   console.error('Firebase load failed:', e);
   setSyncStatus('error');
   _applyDefaults();
+  _syncPeopleFromUsers();
   _initLocalViewMonth();
   populateAllSelects();
   renderDashboard();
