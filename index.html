@@ -3308,27 +3308,23 @@ function bcBonusForRPD(rpd, type){
   const minRPD = bcMinRPD();
   if(rpd < minRPD) return { bonus: 0, label: '< Min', bracket: 0 };
 
+  const STEP = 400; // £400 bonus per £100 RPD bracket
+
   if(bcIsGuidance()){
-    // Guidance brackets start at £650 in £100 steps
-    const table = BC_GUIDANCE_BRACKETS[type] || BC_GUIDANCE_BRACKETS.nonsenior;
-    const bracket = Math.floor(rpd / 100) * 100;
-    const maxBracket = table[table.length-1][0];
-    const lookupBracket = Math.min(bracket, maxBracket);
-    // Find closest bracket (floor to nearest £100 step)
-    const row = table.find(r => r[0] === lookupBracket)
-      || [...table].reverse().find(r => r[0] <= lookupBracket)
-      || table[table.length-1];
-    return { bonus: row[1], bracket: row[0], capped: bracket > maxBracket };
+    // Guidance brackets start at £650 — floor relative to 650 so £680 → £650 bracket, £750 → £750 etc.
+    const bracket = Math.floor((rpd - 650) / 100) * 100 + 650;
+    const baseBonus = type === 'senior' ? 933 : 1600;
+    const steps = Math.floor((bracket - 650) / 100);
+    return { bonus: baseBonus + steps * STEP, bracket };
   }
 
   const bracket = Math.floor(rpd / 100) * 100;
 
   if(bcIsCore()){
-    const table = BC_CORE_BRACKETS[type] || BC_CORE_BRACKETS.nonsenior;
-    const maxBracket = table[table.length-1][0];
-    const lookupBracket = Math.min(bracket, maxBracket);
-    const row = table.find(r => r[0] === lookupBracket) || table[table.length-1];
-    return { bonus: row[1], bracket: lookupBracket, capped: bracket > maxBracket };
+    // Core brackets start at £1,200 — clean £100 multiples so standard floor works
+    const baseBonus = type === 'senior' ? 2000 : 2667;
+    const steps = Math.floor((bracket - 1200) / 100);
+    return { bonus: baseBonus + steps * STEP, bracket };
   }
 
   // Other divisions — original formula
@@ -3462,10 +3458,13 @@ function bcRecalc(){
   const fullTarget = targets.find(t => t.pct === 100)?.rev || 0;
   const hitFullTarget = fullTarget > 0 && revenue >= fullTarget;
 
-  const currentBracket = Math.floor(rpd/100)*100;
+  // For Guidance, brackets are offset (£650, £750...) so align the tier table to that base
+  const currentBracket = bcIsGuidance()
+    ? Math.floor((rpd - 650) / 100) * 100 + 650
+    : Math.floor(rpd/100)*100;
   const tierRows = [];
   const startRpd = Math.max(bcMinRPD(), currentBracket - 400);
-  const endRpd   = currentBracket + 500;
+  const endRpd   = currentBracket + 600;
   for(let r = startRpd; r <= endRpd; r += 100){
     const { bonus: b } = bcBonusForRPD(r, type);
     tierRows.push({ rpd: r, bonus: b, isYou: r === currentBracket });
