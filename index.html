@@ -853,6 +853,220 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
 .msg-notif-card.read{opacity:.6;background:var(--surface2);}
 .msg-notif-card.read::before{background:var(--text3);}
 
+/* ── TICKET SYSTEM ───────────────────────────────────────────────── */
+.ticket-nav-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;
+  font-family:var(--fm);color:var(--text2);cursor:pointer;
+  white-space:nowrap;flex-shrink:0;transition:all .15s;position:relative;
+}
+.ticket-nav-btn:hover{color:var(--text);border-color:var(--accent);}
+.ticket-nav-btn.raise{background:rgba(245,54,92,0.1);color:var(--red);border-color:rgba(245,54,92,0.25);}
+.ticket-nav-btn.raise:hover{background:rgba(245,54,92,0.18);border-color:var(--red);}
+.ticket-nav-btn-badge{
+  position:absolute;top:-4px;right:-4px;
+  background:var(--red);color:#fff;font-size:9px;font-weight:800;
+  border-radius:10px;padding:1px 5px;font-family:var(--fm);
+  line-height:1.4;min-width:16px;text-align:center;
+  box-shadow:0 0 8px rgba(245,54,92,.6);
+  animation:ticket-badge-pulse 1.8s ease-in-out infinite;
+}
+@keyframes ticket-badge-pulse{
+  0%,100%{transform:scale(1);box-shadow:0 0 8px rgba(245,54,92,.6);}
+  50%{transform:scale(1.1);box-shadow:0 0 14px rgba(245,54,92,.9);}
+}
+
+/* Master action banner */
+#ticketMasterBanner{
+  display:none;position:sticky;top:0;z-index:95;
+  background:linear-gradient(135deg,#c0183c,#f5365c);color:#fff;
+  padding:12px 20px;font-family:var(--fh);font-weight:700;
+  box-shadow:0 4px 16px rgba(245,54,92,.4);
+  cursor:pointer;transition:all .15s;
+  display:none;align-items:center;justify-content:center;gap:14px;
+  letter-spacing:.02em;
+  animation:ticket-banner-glow 2.4s ease-in-out infinite;
+}
+#ticketMasterBanner.show{display:flex;}
+#ticketMasterBanner:hover{filter:brightness(1.1);}
+#ticketMasterBanner .tmb-icon{font-size:20px;animation:ticket-banner-shake 1.2s ease-in-out infinite;}
+#ticketMasterBanner .tmb-label{font-size:14px;}
+#ticketMasterBanner .tmb-count{
+  background:rgba(255,255,255,0.25);padding:3px 10px;border-radius:20px;
+  font-size:12px;font-family:var(--fm);
+}
+#ticketMasterBanner .tmb-arrow{font-size:16px;opacity:.9;}
+@keyframes ticket-banner-glow{
+  0%,100%{box-shadow:0 4px 16px rgba(245,54,92,.4);}
+  50%{box-shadow:0 4px 24px rgba(245,54,92,.7);}
+}
+@keyframes ticket-banner-shake{
+  0%,100%{transform:rotate(0);}
+  25%{transform:rotate(-8deg);}
+  75%{transform:rotate(8deg);}
+}
+
+/* Ticket inbox modal */
+#ticketInboxModal .modal{
+  width:1020px;max-width:96vw;height:680px;max-height:92vh;
+  padding:0;display:flex;flex-direction:column;overflow:hidden;
+}
+.ticket-inbox-head{
+  padding:18px 22px;border-bottom:1px solid var(--border);
+  background:var(--surface2);display:flex;align-items:center;
+  justify-content:space-between;gap:12px;flex-shrink:0;
+}
+.ticket-inbox-head-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:10px;}
+.ticket-inbox-tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:3px;}
+.ticket-inbox-tab{
+  background:none;border:none;color:var(--text3);
+  font-family:var(--fh);font-size:12px;font-weight:600;
+  padding:6px 14px;border-radius:6px;cursor:pointer;transition:all .15s;
+}
+.ticket-inbox-tab:hover{color:var(--text2);}
+.ticket-inbox-tab.active{background:var(--accent);color:#fff;}
+.ticket-inbox-body{display:flex;flex:1;min-height:0;overflow:hidden;}
+.ticket-inbox-list{
+  width:340px;border-right:1px solid var(--border);
+  overflow-y:auto;background:var(--surface2);flex-shrink:0;
+}
+.ticket-inbox-thread{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--surface);}
+.ticket-inbox-empty{
+  padding:40px 20px;text-align:center;color:var(--text3);
+  font-family:var(--fm);font-size:12px;
+}
+
+.ticket-list-item{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:all .15s;position:relative;
+}
+.ticket-list-item:hover{background:var(--surface3);}
+.ticket-list-item.active{background:var(--blue-bg);border-left:3px solid var(--accent);padding-left:13px;}
+.ticket-list-item.unread::after{
+  content:'';position:absolute;top:16px;right:14px;
+  width:8px;height:8px;border-radius:50%;background:var(--red);
+  box-shadow:0 0 8px rgba(245,54,92,.7);
+}
+.ticket-list-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.ticket-list-name{font-size:13px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ticket-list-status{
+  font-size:9px;font-weight:800;font-family:var(--fm);
+  padding:2px 7px;border-radius:10px;letter-spacing:.04em;
+  text-transform:uppercase;white-space:nowrap;
+}
+.ticket-list-status.open{background:rgba(245,54,92,.15);color:var(--red);}
+.ticket-list-status.in-progress{background:rgba(251,184,58,.15);color:var(--amber);}
+.ticket-list-status.resolved{background:rgba(45,206,137,.15);color:var(--green);}
+.ticket-list-issue{
+  font-size:11px;color:var(--text2);font-family:var(--fm);
+  line-height:1.4;overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  margin-bottom:6px;
+}
+.ticket-list-meta{
+  font-size:10px;color:var(--text3);font-family:var(--fm);
+  display:flex;align-items:center;gap:8px;
+}
+.ticket-list-meta-role{padding:1px 6px;border-radius:8px;background:var(--surface);font-weight:700;}
+
+/* Thread view */
+.ticket-thread-head{
+  padding:16px 22px;border-bottom:1px solid var(--border);
+  background:var(--surface2);flex-shrink:0;
+}
+.ticket-thread-head-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.ticket-thread-title{font-size:14px;font-weight:700;}
+.ticket-thread-sub{font-size:11px;color:var(--text3);font-family:var(--fm);}
+.ticket-thread-details{
+  padding:14px 22px;background:var(--surface);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.ticket-detail-block{margin-bottom:10px;}
+.ticket-detail-block:last-child{margin-bottom:0;}
+.ticket-detail-lbl{
+  font-size:9px;font-weight:800;color:var(--text3);
+  font-family:var(--fm);letter-spacing:.07em;
+  text-transform:uppercase;margin-bottom:4px;
+}
+.ticket-detail-val{
+  font-size:13px;color:var(--text);line-height:1.5;
+  font-family:var(--fm);background:var(--surface2);
+  padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+  white-space:pre-wrap;word-wrap:break-word;
+}
+.ticket-messages{
+  flex:1;overflow-y:auto;padding:16px 22px;
+  display:flex;flex-direction:column;gap:10px;
+  background:var(--surface);
+}
+.ticket-msg{
+  max-width:78%;padding:10px 14px;border-radius:14px;
+  font-size:13px;line-height:1.5;font-family:var(--fm);
+  position:relative;word-wrap:break-word;white-space:pre-wrap;
+}
+.ticket-msg.from-me{
+  align-self:flex-end;background:var(--accent);color:#fff;
+  border-bottom-right-radius:4px;
+}
+.ticket-msg.from-them{
+  align-self:flex-start;background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);border-bottom-left-radius:4px;
+}
+.ticket-msg-meta{
+  font-size:10px;opacity:.7;margin-top:4px;
+  display:flex;align-items:center;gap:6px;
+}
+.ticket-msg.from-me .ticket-msg-meta{color:rgba(255,255,255,.85);}
+.ticket-msg.from-them .ticket-msg-meta{color:var(--text3);}
+.ticket-msg-role-pill{
+  padding:1px 6px;border-radius:8px;font-weight:700;
+  background:rgba(0,0,0,.15);font-size:9px;text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.ticket-msg.from-them .ticket-msg-role-pill{background:var(--surface3);}
+.ticket-reply-bar{
+  padding:14px 22px;border-top:1px solid var(--border);
+  background:var(--surface2);display:flex;gap:8px;align-items:flex-end;
+  flex-shrink:0;
+}
+.ticket-reply-bar textarea{
+  flex:1;background:var(--surface);border:1px solid var(--border2);
+  border-radius:10px;padding:10px 14px;font-size:13px;
+  font-family:var(--fm);color:var(--text);outline:none;
+  resize:none;min-height:42px;max-height:140px;line-height:1.5;
+}
+.ticket-reply-bar textarea:focus{border-color:var(--accent);}
+.ticket-reply-actions{display:flex;flex-direction:column;gap:6px;}
+
+/* Raise ticket modal */
+#raiseTicketModal .modal{width:560px;max-width:96vw;}
+.rt-field{margin-bottom:16px;}
+.rt-field-lbl{
+  font-size:11px;font-weight:700;color:var(--text2);
+  font-family:var(--fm);letter-spacing:.04em;
+  text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:6px;
+}
+.rt-field-icon{font-size:14px;}
+.rt-field textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:10px;padding:12px 14px;font-size:13px;
+  font-family:var(--fm);color:var(--text);outline:none;
+  resize:vertical;min-height:90px;line-height:1.5;
+}
+.rt-field textarea:focus{border-color:var(--accent);}
+.rt-helper{
+  font-size:11px;color:var(--text3);font-family:var(--fm);
+  margin-top:5px;line-height:1.4;
+}
+
+/* Mobile */
+@media (max-width:720px){
+  #ticketInboxModal .modal{height:92vh;}
+  .ticket-inbox-body{flex-direction:column;}
+  .ticket-inbox-list{width:100%;max-height:40%;border-right:none;border-bottom:1px solid var(--border);}
+}
+
 /* ── CELEBRATION OVERLAY ─────────────────────────────────────────── */
 #celebrationOverlay{
   position:fixed;inset:0;z-index:99999;
@@ -1793,6 +2007,15 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
       </div>
       <div class="nav-date" id="navDate"></div>
       <div id="userRoleBadge" style="font-size:11px;font-weight:700;font-family:var(--fm);white-space:nowrap;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);display:none;"></div>
+      <!-- Raise Ticket button -->
+      <button class="ticket-nav-btn raise" id="raiseTicketBtn" onclick="openRaiseTicketModal()" style="display:none;" title="Raise a support ticket">
+        🎫 Raise Ticket
+      </button>
+      <!-- Messages / Tickets button -->
+      <button class="ticket-nav-btn" id="ticketMessagesBtn" onclick="openTicketInbox()" style="display:none;" title="Messages & tickets">
+        💬 Messages
+        <span class="ticket-nav-btn-badge" id="ticketMessagesBadge" style="display:none;"></span>
+      </button>
       <!-- Notification Bell -->
       <button id="notifBell" onclick="toggleNotifPanel()" style="display:none;position:relative;background:none;border:none;cursor:pointer;padding:4px 6px;color:var(--text2);font-size:18px;line-height:1;" title="Pending reviews">
         🔔
@@ -1821,6 +2044,14 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
     </div>
   </div>
 </nav>
+
+<!-- MASTER ACTION BANNER (red banner for masters when tickets need attention) -->
+<div id="ticketMasterBanner" onclick="openTicketInbox()">
+  <span class="tmb-icon">⚠️</span>
+  <span class="tmb-label">Action needed</span>
+  <span class="tmb-count" id="tmbCount">0 tickets</span>
+  <span class="tmb-arrow">→</span>
+</div>
 
 <!-- DASHBOARD -->
 <div class="page" id="page-dashboard">
@@ -2785,6 +3016,62 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
     <div class="modal-title" id="reviewModalTitle">Review Submission</div>
     <div id="reviewModalBody"></div>
     <div class="modal-btns" id="reviewModalBtns"></div>
+  </div>
+</div>
+
+<!-- RAISE TICKET MODAL -->
+<div class="modal-overlay" id="raiseTicketModal">
+  <div class="modal">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:22px;">🎫</span>
+      <span>Raise Support Ticket</span>
+    </div>
+    <div style="font-size:12px;color:var(--text3);font-family:var(--fm);margin-bottom:18px;line-height:1.5;">
+      Fill in both fields below. This ticket will be sent to Master users — you'll receive replies in your Messages.
+    </div>
+    <div class="rt-field">
+      <div class="rt-field-lbl"><span class="rt-field-icon">❗</span> Current Issue</div>
+      <textarea id="rtCurrentIssue" placeholder="Describe the issue you're experiencing in as much detail as possible…" rows="4"></textarea>
+      <div class="rt-helper">What's happening right now? Include steps to reproduce, error messages, or anything useful.</div>
+    </div>
+    <div class="rt-field">
+      <div class="rt-field-lbl"><span class="rt-field-icon">💡</span> Solution Needed</div>
+      <textarea id="rtSolutionNeeded" placeholder="Describe the outcome you need or what you'd like Master to action…" rows="4"></textarea>
+      <div class="rt-helper">What would resolve this for you? Be specific where possible.</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-s" onclick="closeRaiseTicketModal()">Cancel</button>
+      <button class="btn btn-p" id="rtSubmitBtn" onclick="submitRaiseTicket()">Submit Ticket</button>
+    </div>
+  </div>
+</div>
+
+<!-- TICKET INBOX MODAL -->
+<div class="modal-overlay" id="ticketInboxModal">
+  <div class="modal">
+    <div class="ticket-inbox-head">
+      <div class="ticket-inbox-head-title">
+        <span style="font-size:20px;">💬</span>
+        <span id="ticketInboxTitle">Messages & Tickets</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="ticket-inbox-tabs">
+          <button class="ticket-inbox-tab active" id="tiTabActive" onclick="switchTicketInboxTab('active')">Active</button>
+          <button class="ticket-inbox-tab" id="tiTabHistory" onclick="switchTicketInboxTab('history')">History</button>
+        </div>
+        <button onclick="closeTicketInbox()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;">×</button>
+      </div>
+    </div>
+    <div class="ticket-inbox-body">
+      <div class="ticket-inbox-list" id="ticketInboxList"></div>
+      <div class="ticket-inbox-thread" id="ticketInboxThread">
+        <div class="ticket-inbox-empty" style="margin:auto;">
+          <div style="font-size:40px;margin-bottom:14px;opacity:.4;">📭</div>
+          <div style="font-size:13px;margin-bottom:6px;color:var(--text2);font-weight:600;">Select a ticket to view</div>
+          <div>Your conversations will appear here</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -19037,6 +19324,679 @@ async function bsmExportPayroll(){
     btn.disabled  = false;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// TICKET SYSTEM
+// ═══════════════════════════════════════════════════════════════════
+// Global tickets stored at perfDash2_core/tickets (not division-scoped)
+// so Masters can see all tickets regardless of their active division.
+//
+// Schema: perfDash2_core/tickets/{ticketId}/
+//   id, raisedBy, raisedById, raisedByRole, raisedByDivKey,
+//   currentIssue, solutionNeeded,
+//   status: 'open' | 'in-progress' | 'resolved',
+//   createdAt, updatedAt,
+//   lastMsgFrom, lastMsgAt, lastMsgFromRole,
+//   raiserReadAt, masterReadAt, resolvedAt, resolvedBy,
+//   messages: { [msgId]: { id, from, fromId, fromRole, text, createdAt } }
+
+const _ticketsDbRef = () => (_db ? _db.ref('perfDash2_core/tickets') : null);
+
+let _ticketsAll        = {};     // all tickets visible to the current user
+let _ticketsListener   = null;
+let _activeTicketId    = null;   // currently opened ticket in the inbox
+let _ticketInboxTab    = 'active'; // 'active' or 'history'
+let _ticketInboxOpen   = false;
+
+// ── Start listener (called after login) ────────────────────────────
+function startTicketsListener(){
+  const ref = _ticketsDbRef();
+  if(!ref) return;
+  if(_ticketsListener){ try{ _ticketsListener.off(); }catch(e){} }
+  _ticketsListener = ref;
+  ref.on('value', snap=>{
+    const all  = snap.val() || {};
+    const role = _currentUser?.role || '';
+    const me   = _currentUser?.name || '';
+    const myId = _currentUser?.id || '';
+    _ticketsAll = {};
+    Object.values(all).forEach(t=>{
+      if(!t || !t.id) return;
+      // Masters see all tickets. Everyone else sees only tickets they raised.
+      if(role === 'master'){
+        _ticketsAll[t.id] = t;
+      } else if(t.raisedBy === me || t.raisedById === myId){
+        _ticketsAll[t.id] = t;
+      }
+    });
+    _updateTicketBadges();
+    // Refresh inbox / thread views if open
+    if(_ticketInboxOpen){
+      renderTicketInboxList();
+      if(_activeTicketId && _ticketsAll[_activeTicketId]){
+        renderTicketThread(_activeTicketId);
+      } else if(_activeTicketId && !_ticketsAll[_activeTicketId]){
+        _activeTicketId = null;
+        renderTicketThreadEmpty();
+      }
+    }
+  }, err=>{
+    console.warn('tickets listener error', err);
+  });
+}
+
+function stopTicketsListener(){
+  if(_ticketsListener){
+    try{ _ticketsListener.off(); }catch(e){}
+    _ticketsListener = null;
+  }
+  _ticketsAll = {};
+  _activeTicketId = null;
+}
+
+// ── Show/hide the nav buttons depending on role ────────────────────
+function _applyTicketNavVisibility(){
+  const raiseBtn = document.getElementById('raiseTicketBtn');
+  const msgsBtn  = document.getElementById('ticketMessagesBtn');
+  if(!_currentUser){
+    if(raiseBtn) raiseBtn.style.display = 'none';
+    if(msgsBtn)  msgsBtn.style.display  = 'none';
+    return;
+  }
+  const role = _currentUser.role;
+  // Raise Ticket: everyone except master (master responds to tickets, doesn't raise them — but allow them anyway for testing / flexibility)
+  if(raiseBtn) raiseBtn.style.display = (role === 'master') ? 'none' : 'inline-flex';
+  // Messages: everyone sees this
+  if(msgsBtn)  msgsBtn.style.display  = 'inline-flex';
+}
+
+// ── Compute unread counts and update UI badges/banner ──────────────
+function _updateTicketBadges(){
+  if(!_currentUser) return;
+  const role = _currentUser.role;
+  const me   = _currentUser.name;
+  const myId = _currentUser.id;
+  const tickets = Object.values(_ticketsAll);
+
+  // Master: red banner count = open/in-progress tickets where the last message
+  // is NOT from a master and no master has read since then.
+  if(role === 'master'){
+    const needAction = tickets.filter(t=>{
+      if(!t || t.status === 'resolved') return false;
+      const lastAt  = t.lastMsgAt  || t.createdAt || '';
+      const lastFrom = t.lastMsgFromRole || 'raiser';
+      const readAt  = t.masterReadAt || '';
+      // Needs action if last message is from the raiser AND master hasn't read since then
+      return lastFrom !== 'master' && (!readAt || readAt < lastAt);
+    });
+    const banner = document.getElementById('ticketMasterBanner');
+    const cnt    = document.getElementById('tmbCount');
+    if(needAction.length > 0){
+      if(banner) banner.classList.add('show');
+      if(cnt) cnt.textContent = needAction.length === 1
+        ? '1 ticket waiting'
+        : needAction.length + ' tickets waiting';
+    } else {
+      if(banner) banner.classList.remove('show');
+    }
+    // Messages button badge for master = total tickets awaiting action
+    const msgBadge = document.getElementById('ticketMessagesBadge');
+    if(msgBadge){
+      if(needAction.length > 0){
+        msgBadge.style.display = '';
+        msgBadge.textContent = needAction.length > 9 ? '9+' : String(needAction.length);
+      } else {
+        msgBadge.style.display = 'none';
+      }
+    }
+    return;
+  }
+
+  // Non-master: messages badge = count of my tickets with unread master replies
+  const unread = tickets.filter(t=>{
+    if(!t) return false;
+    // Only my tickets
+    if(t.raisedBy !== me && t.raisedById !== myId) return false;
+    const lastAt   = t.lastMsgAt || '';
+    const lastFrom = t.lastMsgFromRole || 'raiser';
+    const readAt   = t.raiserReadAt || '';
+    // Unread if a master sent something since I last opened the ticket
+    return lastFrom === 'master' && (!readAt || readAt < lastAt);
+  });
+  const banner = document.getElementById('ticketMasterBanner');
+  if(banner) banner.classList.remove('show');
+  const msgBadge = document.getElementById('ticketMessagesBadge');
+  if(msgBadge){
+    if(unread.length > 0){
+      msgBadge.style.display = '';
+      msgBadge.textContent = unread.length > 9 ? '9+' : String(unread.length);
+    } else {
+      msgBadge.style.display = 'none';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RAISE TICKET MODAL
+// ═══════════════════════════════════════════════════════════════════
+function openRaiseTicketModal(){
+  if(!_currentUser){ showToast('Please sign in first', 'err'); return; }
+  const modal = document.getElementById('raiseTicketModal');
+  if(!modal) return;
+  document.getElementById('rtCurrentIssue').value = '';
+  document.getElementById('rtSolutionNeeded').value = '';
+  modal.classList.add('open');
+  setTimeout(()=>document.getElementById('rtCurrentIssue')?.focus(), 80);
+}
+
+function closeRaiseTicketModal(){
+  document.getElementById('raiseTicketModal')?.classList.remove('open');
+}
+
+function submitRaiseTicket(){
+  const issue    = (document.getElementById('rtCurrentIssue')?.value || '').trim();
+  const solution = (document.getElementById('rtSolutionNeeded')?.value || '').trim();
+  if(!issue){ showToast('Please describe the current issue', 'err'); return; }
+  if(!solution){ showToast('Please describe the solution needed', 'err'); return; }
+  if(!_currentUser){ showToast('Not signed in', 'err'); return; }
+  const ref = _ticketsDbRef();
+  if(!ref){ showToast('Not connected — please wait and retry', 'err'); return; }
+
+  const btn = document.getElementById('rtSubmitBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Submitting…'; }
+
+  const now  = new Date().toISOString();
+  const id   = 'tkt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const ticket = {
+    id,
+    raisedBy:       _currentUser.name || 'Unknown',
+    raisedById:     _currentUser.id   || '',
+    raisedByRole:   _currentUser.role || 'consultant',
+    raisedByDivKey: _currentUser.divKey || _currentDivKey || '',
+    currentIssue:   issue,
+    solutionNeeded: solution,
+    status:         'open',
+    createdAt:      now,
+    updatedAt:      now,
+    lastMsgAt:      now,
+    lastMsgFrom:    _currentUser.name || 'Unknown',
+    lastMsgFromRole:'raiser',
+    raiserReadAt:   now,
+    masterReadAt:   '',
+    resolvedAt:     '',
+    resolvedBy:     '',
+    messages:       {}
+  };
+
+  ref.child(id).set(ticket)
+    .then(()=>{
+      if(btn){ btn.disabled = false; btn.textContent = 'Submit Ticket'; }
+      closeRaiseTicketModal();
+      showToast('✓ Ticket submitted — Master has been notified');
+    })
+    .catch(err=>{
+      console.error('Ticket submit failed:', err);
+      if(btn){ btn.disabled = false; btn.textContent = 'Submit Ticket'; }
+      showToast('Failed to submit ticket: ' + err.message, 'err');
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TICKET INBOX
+// ═══════════════════════════════════════════════════════════════════
+function openTicketInbox(){
+  if(!_currentUser){ showToast('Please sign in first', 'err'); return; }
+  const modal = document.getElementById('ticketInboxModal');
+  if(!modal) return;
+  _ticketInboxOpen = true;
+  _ticketInboxTab  = 'active';
+  _activeTicketId  = null;
+  // Update tab buttons
+  document.getElementById('tiTabActive')?.classList.add('active');
+  document.getElementById('tiTabHistory')?.classList.remove('active');
+  // Update title for master
+  const titleEl = document.getElementById('ticketInboxTitle');
+  if(titleEl){
+    titleEl.textContent = _currentUser.role === 'master'
+      ? 'Ticket Inbox (Master)'
+      : 'Messages & Tickets';
+  }
+  modal.classList.add('open');
+  renderTicketInboxList();
+  renderTicketThreadEmpty();
+}
+
+function closeTicketInbox(){
+  _ticketInboxOpen = false;
+  _activeTicketId  = null;
+  document.getElementById('ticketInboxModal')?.classList.remove('open');
+}
+
+function switchTicketInboxTab(tab){
+  _ticketInboxTab = tab;
+  document.getElementById('tiTabActive')?.classList.toggle('active', tab === 'active');
+  document.getElementById('tiTabHistory')?.classList.toggle('active', tab === 'history');
+  _activeTicketId = null;
+  renderTicketInboxList();
+  renderTicketThreadEmpty();
+}
+
+function _escapeHtml(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function _fmtRelTime(iso){
+  if(!iso) return '';
+  try{
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if(mins < 1) return 'just now';
+    if(mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins/60);
+    if(hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs/24);
+    if(days < 7) return days + 'd ago';
+    return d.toLocaleDateString('en-GB', {day:'2-digit',month:'short'});
+  } catch(e){ return ''; }
+}
+
+function _fmtDateTime(iso){
+  if(!iso) return '—';
+  try{ return new Date(iso).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return iso; }
+}
+
+function renderTicketInboxList(){
+  const list = document.getElementById('ticketInboxList');
+  if(!list) return;
+  const role = _currentUser?.role || '';
+  const me   = _currentUser?.name || '';
+  const myId = _currentUser?.id || '';
+
+  let items = Object.values(_ticketsAll).filter(t=>t && t.id);
+  // Tab filter
+  if(_ticketInboxTab === 'active'){
+    items = items.filter(t=>t.status !== 'resolved');
+  } else {
+    items = items.filter(t=>t.status === 'resolved');
+  }
+  // Sort by last activity (most recent first)
+  items.sort((a,b)=>{
+    const ba = b.lastMsgAt || b.updatedAt || b.createdAt || '';
+    const aa = a.lastMsgAt || a.updatedAt || a.createdAt || '';
+    return ba.localeCompare(aa);
+  });
+
+  if(items.length === 0){
+    const msg = _ticketInboxTab === 'active'
+      ? (role === 'master' ? 'No active tickets' : 'You have no active tickets')
+      : (role === 'master' ? 'No resolved tickets yet' : 'No ticket history yet');
+    list.innerHTML = `<div class="ticket-inbox-empty">${msg}</div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(t=>{
+    // Determine unread state for this viewer
+    let unread = false;
+    const lastAt   = t.lastMsgAt || '';
+    const lastFrom = t.lastMsgFromRole || 'raiser';
+    if(role === 'master'){
+      unread = (t.status !== 'resolved') && (lastFrom !== 'master') && (!t.masterReadAt || t.masterReadAt < lastAt);
+    } else {
+      unread = (lastFrom === 'master') && (!t.raiserReadAt || t.raiserReadAt < lastAt);
+    }
+    const statusClass = t.status === 'resolved' ? 'resolved'
+                      : (t.status === 'in-progress' ? 'in-progress' : 'open');
+    const statusLbl = t.status === 'resolved' ? 'Resolved'
+                    : (t.status === 'in-progress' ? 'In Progress' : 'Open');
+    const when = _fmtRelTime(t.lastMsgAt || t.createdAt);
+    const roleLbl = (t.raisedByRole || 'consultant').charAt(0).toUpperCase() + (t.raisedByRole||'consultant').slice(1);
+    const isActive = t.id === _activeTicketId;
+    return `
+      <div class="ticket-list-item ${isActive?'active':''} ${unread?'unread':''}" onclick="selectTicket('${_escapeHtml(t.id)}')">
+        <div class="ticket-list-head">
+          <div class="ticket-list-name">${_escapeHtml(t.raisedBy || 'Unknown')}</div>
+          <span class="ticket-list-status ${statusClass}">${statusLbl}</span>
+        </div>
+        <div class="ticket-list-issue">${_escapeHtml(t.currentIssue || '')}</div>
+        <div class="ticket-list-meta">
+          <span class="ticket-list-meta-role">${_escapeHtml(roleLbl)}</span>
+          <span>${_escapeHtml(when)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderTicketThreadEmpty(){
+  const thread = document.getElementById('ticketInboxThread');
+  if(!thread) return;
+  thread.innerHTML = `
+    <div class="ticket-inbox-empty" style="margin:auto;">
+      <div style="font-size:40px;margin-bottom:14px;opacity:.4;">📭</div>
+      <div style="font-size:13px;margin-bottom:6px;color:var(--text2);font-weight:600;">Select a ticket to view</div>
+      <div>Your conversations will appear here</div>
+    </div>`;
+}
+
+function selectTicket(id){
+  _activeTicketId = id;
+  renderTicketInboxList();
+  renderTicketThread(id);
+  // Mark as read for current viewer
+  _markTicketRead(id);
+}
+
+function _markTicketRead(id){
+  const t = _ticketsAll[id];
+  if(!t) return;
+  const ref = _ticketsDbRef();
+  if(!ref) return;
+  const now = new Date().toISOString();
+  const role = _currentUser?.role || '';
+  const me   = _currentUser?.name || '';
+  const updates = {};
+  if(role === 'master'){
+    updates['masterReadAt'] = now;
+  } else if(t.raisedBy === me || t.raisedById === (_currentUser?.id || '')){
+    updates['raiserReadAt'] = now;
+  }
+  if(Object.keys(updates).length){
+    ref.child(id).update(updates).catch(err=>console.warn('mark read failed', err));
+  }
+}
+
+function renderTicketThread(id){
+  const thread = document.getElementById('ticketInboxThread');
+  const t = _ticketsAll[id];
+  if(!thread) return;
+  if(!t){ renderTicketThreadEmpty(); return; }
+
+  const role = _currentUser?.role || '';
+  const me   = _currentUser?.name || '';
+  const isMaster = (role === 'master');
+  const isRaiser = (t.raisedBy === me || t.raisedById === (_currentUser?.id || ''));
+  const canReply = (isMaster || isRaiser) && t.status !== 'resolved';
+
+  // Build messages array (sorted by createdAt)
+  const msgs = Object.values(t.messages || {})
+    .filter(m=>m && m.id)
+    .sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||''));
+
+  const statusClass = t.status === 'resolved' ? 'resolved'
+                    : (t.status === 'in-progress' ? 'in-progress' : 'open');
+  const statusLbl = t.status === 'resolved' ? 'Resolved'
+                  : (t.status === 'in-progress' ? 'In Progress' : 'Open');
+
+  const roleLbl = (t.raisedByRole || 'consultant').charAt(0).toUpperCase() + (t.raisedByRole||'consultant').slice(1);
+
+  // Action buttons for master
+  const masterActions = isMaster && t.status !== 'resolved'
+    ? `<button class="btn btn-s" onclick="markTicketResolved('${_escapeHtml(t.id)}')" style="background:var(--green-bg);color:var(--green);border-color:rgba(45,206,137,.3);font-size:11px;padding:5px 10px;">✓ Mark Resolved</button>`
+    : (isMaster && t.status === 'resolved'
+        ? `<button class="btn btn-s" onclick="reopenTicket('${_escapeHtml(t.id)}')" style="font-size:11px;padding:5px 10px;">↺ Re-open</button>`
+        : '');
+
+  thread.innerHTML = `
+    <div class="ticket-thread-head">
+      <div class="ticket-thread-head-top">
+        <div>
+          <div class="ticket-thread-title">Ticket from ${_escapeHtml(t.raisedBy || 'Unknown')}</div>
+          <div class="ticket-thread-sub">${_escapeHtml(roleLbl)} · Opened ${_fmtDateTime(t.createdAt)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="ticket-list-status ${statusClass}">${statusLbl}</span>
+          ${masterActions}
+        </div>
+      </div>
+    </div>
+
+    <div class="ticket-thread-details">
+      <div class="ticket-detail-block">
+        <div class="ticket-detail-lbl">❗ Current Issue</div>
+        <div class="ticket-detail-val">${_escapeHtml(t.currentIssue || '')}</div>
+      </div>
+      <div class="ticket-detail-block">
+        <div class="ticket-detail-lbl">💡 Solution Needed</div>
+        <div class="ticket-detail-val">${_escapeHtml(t.solutionNeeded || '')}</div>
+      </div>
+      ${t.status === 'resolved' && t.resolvedBy ? `
+        <div class="ticket-detail-block">
+          <div class="ticket-detail-lbl">✓ Resolved</div>
+          <div class="ticket-detail-val" style="background:var(--green-bg);border-color:rgba(45,206,137,.3);color:var(--green);">
+            By ${_escapeHtml(t.resolvedBy)} on ${_fmtDateTime(t.resolvedAt)}
+          </div>
+        </div>` : ''}
+    </div>
+
+    <div class="ticket-messages" id="ticketMessages_${_escapeHtml(t.id)}">
+      ${msgs.length === 0
+        ? `<div class="ticket-inbox-empty" style="margin:auto;">No replies yet</div>`
+        : msgs.map(m=>{
+            const mine = (m.fromRole === 'master' && isMaster) ||
+                         (m.fromRole !== 'master' && !isMaster && m.from === me);
+            const side = mine ? 'from-me' : 'from-them';
+            const rolePill = m.fromRole === 'master' ? 'Master'
+                           : (m.fromRole === 'manager' ? 'Manager'
+                           : (m.fromRole === 'compliance' ? 'Compliance' : 'Consultant'));
+            return `
+              <div class="ticket-msg ${side}">
+                <div>${_escapeHtml(m.text || '')}</div>
+                <div class="ticket-msg-meta">
+                  <span class="ticket-msg-role-pill">${_escapeHtml(rolePill)}</span>
+                  <span>${_escapeHtml(m.from || '')}</span>
+                  <span>·</span>
+                  <span>${_escapeHtml(_fmtDateTime(m.createdAt))}</span>
+                </div>
+              </div>`;
+          }).join('')
+      }
+    </div>
+
+    ${canReply ? `
+      <div class="ticket-reply-bar">
+        <textarea id="ticketReplyInput_${_escapeHtml(t.id)}" placeholder="Type your reply…" rows="1" oninput="_autoGrowReply(this)" onkeydown="_ticketReplyKeydown(event,'${_escapeHtml(t.id)}')"></textarea>
+        <div class="ticket-reply-actions">
+          <button class="btn btn-p" style="font-size:12px;padding:8px 14px;" onclick="sendTicketReply('${_escapeHtml(t.id)}')">Send</button>
+        </div>
+      </div>
+    ` : (t.status === 'resolved' ? `
+      <div style="padding:14px 22px;border-top:1px solid var(--border);background:var(--surface2);text-align:center;font-size:12px;color:var(--text3);font-family:var(--fm);">
+        This ticket has been resolved${isMaster?' — you can re-open it above':''}.
+      </div>
+    ` : '')}
+  `;
+
+  // Scroll to bottom of messages
+  const msgBox = document.getElementById('ticketMessages_' + t.id);
+  if(msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+}
+
+function _autoGrowReply(el){
+  if(!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(140, el.scrollHeight) + 'px';
+}
+
+function _ticketReplyKeydown(e, id){
+  // Enter to send, Shift+Enter for newline
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendTicketReply(id);
+  }
+}
+
+function sendTicketReply(id){
+  const t = _ticketsAll[id];
+  if(!t){ showToast('Ticket not found', 'err'); return; }
+  if(t.status === 'resolved'){ showToast('Ticket is resolved', 'err'); return; }
+  const input = document.getElementById('ticketReplyInput_' + id);
+  if(!input) return;
+  const text = (input.value || '').trim();
+  if(!text) return;
+  if(!_currentUser){ showToast('Not signed in', 'err'); return; }
+  const ref = _ticketsDbRef();
+  if(!ref){ showToast('Not connected', 'err'); return; }
+
+  const now   = new Date().toISOString();
+  const role  = _currentUser.role || 'consultant';
+  const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const msg = {
+    id: msgId,
+    from:      _currentUser.name || 'Unknown',
+    fromId:    _currentUser.id   || '',
+    fromRole:  role,
+    text,
+    createdAt: now
+  };
+
+  // Role for lastMsgFromRole — collapse to 'master' vs 'raiser' for simple unread logic
+  const lastMsgFromRole = (role === 'master') ? 'master' : 'raiser';
+
+  // Build update — add message + bump status + update counters
+  const updates = {};
+  updates['messages/' + msgId]  = msg;
+  updates['lastMsgAt']          = now;
+  updates['lastMsgFrom']        = msg.from;
+  updates['lastMsgFromRole']    = lastMsgFromRole;
+  updates['updatedAt']          = now;
+  // If master replies to an 'open' ticket, move to 'in-progress'
+  if(role === 'master' && t.status === 'open'){
+    updates['status'] = 'in-progress';
+  }
+  // Mark the sender's read timestamp (they've obviously seen everything up to now)
+  if(role === 'master'){
+    updates['masterReadAt'] = now;
+  } else {
+    updates['raiserReadAt'] = now;
+  }
+
+  input.disabled = true;
+  ref.child(id).update(updates)
+    .then(()=>{
+      input.value = '';
+      input.disabled = false;
+      _autoGrowReply(input);
+      input.focus();
+    })
+    .catch(err=>{
+      console.error('Reply failed:', err);
+      input.disabled = false;
+      showToast('Failed to send: ' + err.message, 'err');
+    });
+}
+
+function markTicketResolved(id){
+  const t = _ticketsAll[id];
+  if(!t) return;
+  if(_currentUser?.role !== 'master'){ showToast('Only Master users can resolve tickets', 'err'); return; }
+  if(!confirm('Mark this ticket as resolved? The user will still see it in their History.')) return;
+  const ref = _ticketsDbRef();
+  if(!ref) return;
+  const now = new Date().toISOString();
+  ref.child(id).update({
+    status:     'resolved',
+    resolvedAt: now,
+    resolvedBy: _currentUser.name || 'Master',
+    updatedAt:  now,
+    masterReadAt: now
+  })
+  .then(()=>{
+    showToast('✓ Ticket marked as resolved');
+  })
+  .catch(err=>{
+    showToast('Failed: ' + err.message, 'err');
+  });
+}
+
+function reopenTicket(id){
+  if(_currentUser?.role !== 'master'){ showToast('Only Master users can re-open tickets', 'err'); return; }
+  if(!confirm('Re-open this ticket?')) return;
+  const ref = _ticketsDbRef();
+  if(!ref) return;
+  const now = new Date().toISOString();
+  ref.child(id).update({
+    status:     'in-progress',
+    resolvedAt: '',
+    resolvedBy: '',
+    updatedAt:  now
+  })
+  .then(()=>{
+    showToast('Ticket re-opened');
+  })
+  .catch(err=>{
+    showToast('Failed: ' + err.message, 'err');
+  });
+}
+
+// ── Hook into the login/logout flow ────────────────────────────────
+// Wrap _startWithRole to start the listener after login.
+if(typeof _startWithRole === 'function'){
+  const _origStartWithRole = _startWithRole;
+  _startWithRole = function(){
+    const ret = _origStartWithRole.apply(this, arguments);
+    try{
+      _applyTicketNavVisibility();
+      startTicketsListener();
+    } catch(e){ console.warn('ticket system init error', e); }
+    return ret;
+  };
+}
+
+// Wrap applyRoleVisibility so the nav buttons update whenever role visibility is re-applied
+if(typeof applyRoleVisibility === 'function'){
+  const _origApplyRoleVisibility = applyRoleVisibility;
+  applyRoleVisibility = function(){
+    const ret = _origApplyRoleVisibility.apply(this, arguments);
+    try{ _applyTicketNavVisibility(); _updateTicketBadges(); }catch(e){}
+    return ret;
+  };
+}
+
+// Wrap logoutUser to stop listener and hide UI
+if(typeof logoutUser === 'function'){
+  const _origLogout = logoutUser;
+  logoutUser = function(){
+    try{
+      stopTicketsListener();
+      document.getElementById('ticketMasterBanner')?.classList.remove('show');
+      document.getElementById('raiseTicketBtn').style.display = 'none';
+      document.getElementById('ticketMessagesBtn').style.display = 'none';
+      document.getElementById('ticketMessagesBadge').style.display = 'none';
+      closeTicketInbox();
+      closeRaiseTicketModal();
+    }catch(e){}
+    return _origLogout.apply(this, arguments);
+  };
+}
+
+// Also kick the visibility update shortly after load in case a session restore happened
+setTimeout(()=>{
+  try{
+    if(_currentUser){
+      _applyTicketNavVisibility();
+      startTicketsListener();
+    }
+  }catch(e){ console.warn(e); }
+}, 1500);
+
+// Close modals with Escape
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    if(document.getElementById('raiseTicketModal')?.classList.contains('open')) closeRaiseTicketModal();
+    else if(document.getElementById('ticketInboxModal')?.classList.contains('open')) closeTicketInbox();
+  }
+});
+
+// Close modals when clicking on the overlay backdrop
+document.getElementById('raiseTicketModal')?.addEventListener('click', function(e){
+  if(e.target === this) closeRaiseTicketModal();
+});
+document.getElementById('ticketInboxModal')?.addEventListener('click', function(e){
+  if(e.target === this) closeTicketInbox();
+});
 </script>
 
 </body>
