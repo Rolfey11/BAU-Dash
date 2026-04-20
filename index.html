@@ -18723,23 +18723,14 @@ function _injectConsultantLandingFeatures(mk, myName, data){
     }
   }
 
-  // 4. Target road — inject into cdContent after the KPI panel
-  const roadTarget = document.getElementById('roadFillTarget');
-  if(!roadTarget && cdContent){
-    const roadHtml = renderTargetRoad(data.pct, data.target, data.revMTD);
-    // Find the monthly summary panel and insert after it
-    const summaryPanel = cdContent.querySelector('div[style*="Monthly Summary"]');
-    if(summaryPanel && summaryPanel.parentElement){
-      summaryPanel.parentElement.insertAdjacentHTML('afterend', roadHtml);
-      _animateRoad(data.pct);
-    } else {
-      // Fallback: prepend to cdContent
-      cdContent.insertAdjacentHTML('afterbegin', roadHtml);
-      _animateRoad(data.pct);
-    }
-  } else if(roadTarget){
-    _animateRoad(data.pct);
-  }
+  // 4. Target road — DISABLED: the road bar is already rendered inline by
+  // renderConsultantDaily() inside the right-column "Progress to Target" panel
+  // (lines ~10638). Previously this block injected a duplicate road bar with
+  // the same #roadFill / #roadCar IDs, causing a flicker on first render and
+  // unreliable animation behavior. The original right-column bar is animated
+  // by the existing _animateRoad(pct) call at the end of renderConsultantDaily.
+  // Intentionally a no-op:
+  // (kept commented for clarity — do not re-enable without deduping IDs)
 }
 
 function dismissCopBanner(){
@@ -20512,8 +20503,11 @@ function buildLiveBonusCard(mk, myName){
       </div>`;
     }
 
-    // Person type — try to read it from the entry config; fall back to 'nonsenior'
-    const personType = (ep.type === 'senior') ? 'senior' : 'nonsenior';
+    // Person type — _bcType is the senior/non-senior toggle from the Bonus
+    // Calculator. getPersonForMonth() does NOT return a `type` field, so we
+    // can't read it from the person record. _bcType defaults to 'nonsenior'
+    // and persists across the user's session as they toggle it on the calc.
+    const personType = (typeof _bcType !== 'undefined' && _bcType === 'senior') ? 'senior' : 'nonsenior';
 
     // MTD revenue
     const entries = getEntries(mk);
@@ -20530,58 +20524,87 @@ function buildLiveBonusCard(mk, myName){
     const sickDaysCount  = (typeof getSickWorkDayCount === 'function') ? getSickWorkDayCount(mk, myName) : 0;
     const effectiveDaysT = Math.max(1, daysT - sickDaysCount);
 
-    // Current RPD (based on days worked / sale-producing days)
-    const daysWithSales = new Set(mine.filter(e=>(e.revenue||0)>0).map(e=>e.date)).size;
-    const currentRPD = daysWithSales > 0 ? revMTD / daysWithSales : 0;
+    // ── BONUS MATHS — must mirror the actual bonus calc formula ────
+    // From bonus submission (line ~19090): rpd = revenue / yourDays;
+    //   fullBonus = bcBonusForRPD(rpd); proRata = fullBonus * (yourDays/wdm)
+    //
+    // We compute three meaningful scenarios:
+    //
+    // TIER 1 — "If You Stop Selling" (calculated as if month ended TODAY)
+    //   yourDays = wdElapsed (days worked so far)
+    //   revenue  = revMTD
+    //   rpd      = revMTD / wdElapsed
+    //   bonus    = bcBonusForRPD(rpd) × (wdElapsed / effectiveDaysT)   ← pro-rata for partial month
+    //
+    // TIER 2 — "On Current Pace" (linear extrapolation through month end)
+    //   Projected revenue = revMTD × (effectiveDaysT / wdElapsed)
+    //   yourDays = effectiveDaysT  (full month)
+    //   rpd      = revMTD / wdElapsed   (same RPD, just extrapolated days)
+    //   bonus    = bcBonusForRPD(rpd) × 1   ← no pro-rata (full month)
+    //
+    // TIER 3 — "If You Hit Target"
+    //   rpd      = riskPerDay
+    //   bonus    = bcBonusForRPD(riskPerDay)
+    //
+    // Note: Tier 1 and Tier 2 use the SAME rpd but different scaling.
+    // Tier 1 < Tier 2 always (until the last working day of the month).
+    const minRPD = bcMinRPD();
 
-    // Projected month-end revenue based on current pace
-    const projectedRev = wdElapsed > 0 ? revMTD / wdElapsed * effectiveDaysT : 0;
-    const projectedRPD = effectiveDaysT > 0 ? projectedRev / effectiveDaysT : 0;
+    const paceRPD = wdElapsed > 0 ? revMTD / wdElapsed : 0;
 
-    // Current "if month ended now" RPD (revMTD / effectiveDaysT — full month divisor)
-    const ifNowRPD = effectiveDaysT > 0 ? revMTD / effectiveDaysT : 0;
+    const fullBonusAtPace   = bcBonusForRPD(paceRPD,    personType);
+    const fullBonusAtTarget = bcBonusForRPD(riskPerDay, personType);
 
-    // Bonus calcs
-    const minRPD   = bcMinRPD();
-    const ifNow    = bcBonusForRPD(ifNowRPD, personType);
-    const projected = bcBonusForRPD(projectedRPD, personType);
-    const atTarget  = bcBonusForRPD(riskPerDay, personType);
+    const stopBonus = fullBonusAtPace.bonus * (wdElapsed / effectiveDaysT);
+    const paceBonus = fullBonusAtPace.bonus;        // full-month, current pace
+    const tgtBonus  = fullBonusAtTarget.bonus;      // full-month, hit target
 
-    // Next bracket calc
-    const STEP = 100; // £100 RPD steps
-    const nextBracketRPD = Math.floor(projectedRPD / STEP) * STEP + STEP;
+    // The "headline" projected bonus is Tier 2 (current pace, full month)
+    const projectedBonus = paceBonus;
+
+    // ── Next bracket calc ──
+    // Next £100 RPD bracket above current pace
+    const STEP = 100;
+    const nextBracketRPD = Math.floor(paceRPD / STEP) * STEP + STEP;
     const nextBonusInfo  = bcBonusForRPD(nextBracketRPD, personType);
-    const revToNextBracket = Math.max(0, nextBracketRPD * effectiveDaysT - projectedRev);
-    const bonusJump = nextBonusInfo.bonus - projected.bonus;
+    // Revenue required (over full month) to land in the next bracket
+    const projectedTotalRev = paceRPD * effectiveDaysT;
+    const revToNextBracket  = Math.max(0, nextBracketRPD * effectiveDaysT - projectedTotalRev);
+    const bonusJump         = nextBonusInfo.bonus - projectedBonus;
+    const daysLeft          = Math.max(0, totalWD - wdElapsed);
+    const revPerDayToNext   = daysLeft > 0 ? revToNextBracket / daysLeft : 0;
 
-    // Status colour
+    // ── Status colour ──
     let projColor;
-    if(projected.bonus >= atTarget.bonus) projColor = 'var(--green)';
-    else if(projected.bonus >= atTarget.bonus * 0.75) projColor = 'var(--amber)';
-    else if(projected.bonus > 0) projColor = 'var(--blue)';
+    if(projectedBonus >= tgtBonus && tgtBonus > 0) projColor = 'var(--green)';
+    else if(tgtBonus > 0 && projectedBonus >= tgtBonus * 0.75) projColor = 'var(--amber)';
+    else if(projectedBonus > 0) projColor = 'var(--blue)';
     else projColor = 'var(--text3)';
 
-    const onTrack = projected.bonus >= atTarget.bonus;
+    const onTrack  = tgtBonus > 0 && projectedBonus >= tgtBonus;
+    const belowMin = paceRPD < minRPD;
 
-    // Today's contribution
+    // ── Today's contribution (delta) ──
+    // Only show this if:
+    //  - There's revenue today (todayRev > 0)
+    //  - There were prior working days (wdElapsed >= 2) so we can subtract today
+    //  - Today is in the elapsed working days (it should be, as today's entries exist)
     const todayEntries = mine.filter(e => e.date === today);
-    const todayRev     = todayEntries.reduce((s,e)=>s+(e.revenue||0), 0);
+    const todayRev     = todayEntries.reduce((s,e)=>s + (e.revenue||0), 0);
     let todayDelta = '';
-    if(todayRev > 0 && wdElapsed > 0){
-      const revBeforeToday = revMTD - todayRev;
-      // Recompute projection without today
-      const projBeforeToday = wdElapsed > 1 ? revBeforeToday / (wdElapsed - 1) * effectiveDaysT : 0;
-      const rpdBeforeToday  = effectiveDaysT > 0 ? projBeforeToday / effectiveDaysT : 0;
-      const bonusBeforeToday = bcBonusForRPD(rpdBeforeToday, personType).bonus;
-      const delta = projected.bonus - bonusBeforeToday;
+    if(todayRev > 0 && wdElapsed >= 2){
+      const revBeforeToday  = revMTD - todayRev;
+      const wdBeforeToday   = wdElapsed - 1;          // safe: >= 1
+      const paceRPDBefore   = revBeforeToday / wdBeforeToday;
+      const bonusBeforeToday = bcBonusForRPD(paceRPDBefore, personType).bonus; // full-month basis (matches Tier 2)
+      const delta = projectedBonus - bonusBeforeToday;
       if(delta > 0){
         todayDelta = `<div class="blc-delta-pos">↑ Today's sales lifted your projected bonus by <strong>£${Math.round(delta).toLocaleString()}</strong></div>`;
       } else if(delta < 0){
-        todayDelta = `<div class="blc-delta-neg">↓ Projected bonus dipped £${Math.round(Math.abs(delta)).toLocaleString()} since yesterday</div>`;
+        // This can happen if today's RPD is below their prior pace — pulled the average down
+        todayDelta = `<div class="blc-delta-neg">↓ Today's pace dipped your projection by £${Math.round(Math.abs(delta)).toLocaleString()}</div>`;
       }
     }
-
-    const belowMin = projectedRPD < minRPD;
 
     return `
       <div class="bonus-live-card">
@@ -20594,49 +20617,49 @@ function buildLiveBonusCard(mk, myName){
         </div>
 
         <div class="blc-projected">
-          <div class="blc-proj-lbl">Projected Bonus</div>
-          <div class="blc-proj-val" style="color:${projColor}">£${Math.round(projected.bonus).toLocaleString()}</div>
-          <div class="blc-proj-sub">at projected RPD of £${Math.round(projectedRPD).toLocaleString()}/day</div>
+          <div class="blc-proj-lbl">Projected Bonus (Current Pace)</div>
+          <div class="blc-proj-val" style="color:${projColor}">£${Math.round(projectedBonus).toLocaleString()}</div>
+          <div class="blc-proj-sub">at RPD of £${Math.round(paceRPD).toLocaleString()}/day · ${personType==='senior'?'Senior':'Non-Senior'} scale</div>
         </div>
 
         ${todayDelta}
 
         <div class="blc-tiers">
-          <div class="blc-tier ${revMTD>0 && ifNow.bonus>0 ? 'tier-active':''}">
-            <div class="blc-tier-lbl">If Month Ended Now</div>
-            <div class="blc-tier-val">£${Math.round(ifNow.bonus).toLocaleString()}</div>
-            <div class="blc-tier-sub">RPD £${Math.round(ifNowRPD).toLocaleString()}</div>
+          <div class="blc-tier">
+            <div class="blc-tier-lbl">If You Stop Selling</div>
+            <div class="blc-tier-val">£${Math.round(stopBonus).toLocaleString()}</div>
+            <div class="blc-tier-sub">pro-rata for ${wdElapsed}/${effectiveDaysT} days</div>
           </div>
           <div class="blc-tier-arrow">→</div>
           <div class="blc-tier tier-projected">
-            <div class="blc-tier-lbl">Projected (Current Pace)</div>
-            <div class="blc-tier-val" style="color:${projColor}">£${Math.round(projected.bonus).toLocaleString()}</div>
-            <div class="blc-tier-sub">RPD £${Math.round(projectedRPD).toLocaleString()}</div>
+            <div class="blc-tier-lbl">On Current Pace</div>
+            <div class="blc-tier-val" style="color:${projColor}">£${Math.round(paceBonus).toLocaleString()}</div>
+            <div class="blc-tier-sub">RPD £${Math.round(paceRPD).toLocaleString()}/day</div>
           </div>
           <div class="blc-tier-arrow">→</div>
           <div class="blc-tier ${onTrack?'tier-target-hit':''}">
             <div class="blc-tier-lbl">If You Hit Target</div>
-            <div class="blc-tier-val">£${Math.round(atTarget.bonus).toLocaleString()}</div>
-            <div class="blc-tier-sub">RPD £${Math.round(riskPerDay).toLocaleString()}</div>
+            <div class="blc-tier-val">£${Math.round(tgtBonus).toLocaleString()}</div>
+            <div class="blc-tier-sub">RPD £${Math.round(riskPerDay).toLocaleString()}/day</div>
           </div>
         </div>
 
-        ${bonusJump > 0 && revToNextBracket > 0 ? `
+        ${bonusJump > 0 && revToNextBracket > 0 && nextBracketRPD <= riskPerDay + 200 ? `
         <div class="blc-next">
           <div class="blc-next-icon">🎯</div>
           <div class="blc-next-content">
             <div class="blc-next-title">Next Bracket: £${nextBracketRPD.toLocaleString()} RPD</div>
-            <div class="blc-next-sub">Add <strong style="color:var(--accent)">£${Math.round(revToNextBracket).toLocaleString()}</strong> more revenue this month to unlock <strong style="color:var(--green)">+£${Math.round(bonusJump).toLocaleString()}</strong> bonus</div>
+            <div class="blc-next-sub">Add <strong style="color:var(--accent)">£${Math.round(revToNextBracket).toLocaleString()}</strong> more revenue ${daysLeft > 0 ? `(<strong>£${Math.round(revPerDayToNext).toLocaleString()}/day</strong> over ${daysLeft} day${daysLeft===1?'':'s'} left)` : ''} to unlock <strong style="color:var(--green)">+£${Math.round(bonusJump).toLocaleString()}</strong> bonus</div>
           </div>
         </div>` : ''}
 
         ${belowMin ? `
         <div class="blc-warn">
           <span>⚠️</span>
-          <span>Projected RPD is below the £${minRPD.toLocaleString()}/day minimum threshold for any bonus payout.</span>
+          <span>Current pace RPD (£${Math.round(paceRPD).toLocaleString()}) is below the £${minRPD.toLocaleString()}/day minimum threshold. No bonus payout until pace improves.</span>
         </div>` : ''}
 
-        <div class="blc-foot">Bonus calculations are projections based on current performance and may change. View the <a href="javascript:showPage('bonuscalc')">Bonus Calculator</a> for full breakdown.</div>
+        <div class="blc-foot">Live projection — based on current pace (£${Math.round(paceRPD).toLocaleString()}/day) extrapolated to month end. Toggle senior/non-senior on the <a href="javascript:showPage('bonuscalc')">Bonus Calculator</a>.</div>
       </div>`;
   } catch(err){
     console.warn('live bonus card error', err);
@@ -21107,6 +21130,23 @@ if(typeof _startWithRole === 'function'){
       _ensureKudosPageExists();
       startKudosListener();
     } catch(e){ console.warn('kudos init', e); }
+    return ret;
+  };
+}
+
+// Hook applyRoleVisibility so the Kudos tab stays visible for all roles.
+// applyRoleVisibility hides any nav-tab whose target page isn't in
+// ROLE_ACCESS[role]. 'kudos' isn't in any role's allow-list, which would
+// hide the tab for everyone except masters. Force it visible after the
+// original runs.
+if(typeof applyRoleVisibility === 'function'){
+  const _origApplyRoleKudos = applyRoleVisibility;
+  applyRoleVisibility = function(){
+    const ret = _origApplyRoleKudos.apply(this, arguments);
+    try{
+      const kt = document.getElementById('kudosNavTab');
+      if(kt) kt.style.display = '';
+    } catch(e){}
     return ret;
   };
 }
