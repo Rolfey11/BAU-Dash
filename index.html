@@ -7481,7 +7481,10 @@ function createNewMonth(){
   const y = document.getElementById('modalYear').value;
   const key = y+'-'+m;
   if(APP.months[key]){ showToast('Month already exists'); closeModal(); return; }
-  APP.months[key]={entries:[]};
+  // Include createdAt so Firebase actually persists the month key.
+  // Firebase Realtime DB drops empty arrays/objects, so {entries:[]} alone
+  // would be silently stripped on save and the new month would vanish.
+  APP.months[key]={entries:[], createdAt: Date.now()};
   APP.activeMonth=key;
   // Store locally so this user's view switches to the new month
   _writeLocalViewMonth(key);
@@ -10434,7 +10437,9 @@ function renderConsultantDaily(){
   const elapsed = calWorkDays(mk, myName);
   const forTarget   = target - revMTD;
   const copRiskNeeded = riskPerDay>0 ? (riskPerDay*(elapsed+1) - revMTD) : 0;
-  const copNmNeeded   = (elapsed*nmRate()+nmRate()) - nmMTD;
+  // Mirror the riskPerDay guard above — if no NM target is set for this month
+  // (nmTarget=0 because daysT=0 or fully offset by sickness), COP NM needed = 0.
+  const copNmNeeded   = nmTarget>0 ? ((elapsed*nmRate()+nmRate()) - nmMTD) : 0;
   const rpdNeeded     = (effectiveDaysT - elapsed)>0 ? forTarget/(effectiveDaysT - elapsed) : 0;
   const daysWorked    = new Set(mine.filter(e=>(e.revenue||0)>0||(e.nm||0)>0).map(e=>e.date)).size;
 
