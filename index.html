@@ -1067,6 +1067,298 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
   .ticket-inbox-list{width:100%;max-height:40%;border-right:none;border-bottom:1px solid var(--border);}
 }
 
+/* ── FORECAST CARD (Dashboard) ──────────────────────────────────── */
+.forecast-card{
+  background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);
+  border:1px solid var(--border2);border-radius:16px;
+  padding:22px 26px;position:relative;overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.forecast-card::before{
+  content:'';position:absolute;top:-80px;right:-80px;width:260px;height:260px;
+  background:radial-gradient(circle,rgba(94,156,245,.12),transparent 70%);
+  pointer-events:none;
+}
+.fc-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+.fc-title{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.fc-icon{font-size:22px;}
+.fc-badge{
+  font-size:10px;font-weight:800;font-family:var(--fm);
+  padding:4px 11px;border-radius:20px;border:1px solid;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.fc-main-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+  margin-bottom:18px;
+}
+.fc-main-col{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:14px 18px;position:relative;
+}
+.fc-main-lbl{
+  font-size:10px;font-weight:800;color:var(--text3);
+  font-family:var(--fm);letter-spacing:.07em;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.fc-main-val{font-size:26px;font-weight:800;font-family:var(--fm);letter-spacing:-.02em;line-height:1;margin-bottom:5px;}
+.fc-main-sub{font-size:11px;color:var(--text3);font-family:var(--fm);}
+.fc-narrative{
+  background:rgba(94,156,245,.06);border:1px solid rgba(94,156,245,.18);
+  border-radius:10px;padding:13px 16px;margin-bottom:18px;
+  font-size:13px;line-height:1.6;color:var(--text2);font-family:var(--fm);
+}
+.fc-narrative strong{color:var(--text);}
+.fc-secondary-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  margin-bottom:18px;
+}
+.fc-sec-block{
+  background:var(--surface2);border-radius:10px;padding:11px 14px;
+}
+.fc-sec-lbl{
+  font-size:9px;font-weight:800;color:var(--text3);
+  font-family:var(--fm);letter-spacing:.07em;
+  text-transform:uppercase;margin-bottom:5px;
+}
+.fc-sec-val{font-size:17px;font-weight:700;font-family:var(--fm);margin-bottom:3px;}
+.fc-sec-sub{font-size:10px;font-family:var(--fm);}
+
+.fc-team-section{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:14px 16px;
+}
+.fc-team-title{
+  font-size:11px;font-weight:800;color:var(--text3);
+  font-family:var(--fm);letter-spacing:.07em;
+  text-transform:uppercase;margin-bottom:10px;
+}
+.fc-team-head{
+  display:grid;grid-template-columns:1.5fr 1fr 0.8fr 1fr;gap:10px;
+  padding:6px 8px;font-size:10px;font-weight:700;
+  color:var(--text3);font-family:var(--fm);
+  text-transform:uppercase;letter-spacing:.05em;
+  border-bottom:1px solid var(--border);
+}
+.fc-team-row{
+  display:grid;grid-template-columns:1.5fr 1fr 0.8fr 1fr;gap:10px;
+  padding:9px 8px;font-size:13px;font-family:var(--fm);
+  border-bottom:1px solid var(--border);align-items:center;
+}
+.fc-team-row:last-child{border-bottom:none;}
+.fc-team-name{font-weight:600;}
+.fc-team-proj{font-weight:700;}
+.fc-team-pct{font-weight:800;}
+.fc-team-gap{font-weight:700;text-align:right;}
+
+@media (max-width:880px){
+  .fc-main-grid,.fc-secondary-grid{grid-template-columns:1fr;}
+}
+
+/* ── LIVE BONUS WIDGET (Consultant Daily) ───────────────────────── */
+.bonus-live-card{
+  background:linear-gradient(135deg,rgba(45,206,137,.10),rgba(94,156,245,.08));
+  border:1px solid rgba(45,206,137,.3);border-radius:14px;
+  padding:16px 18px;position:relative;overflow:hidden;
+  box-shadow:0 4px 18px rgba(45,206,137,.1);
+}
+.bonus-live-card::before{
+  content:'';position:absolute;top:-50px;right:-50px;width:160px;height:160px;
+  background:radial-gradient(circle,rgba(45,206,137,.15),transparent 70%);
+  pointer-events:none;
+}
+.bonus-live-card.empty{
+  background:var(--surface2);border-color:var(--border);
+  text-align:center;padding:24px 18px;
+}
+.bonus-live-card.empty::before{display:none;}
+.blc-empty-icon{font-size:32px;margin-bottom:8px;opacity:.4;}
+.blc-empty-title{font-size:13px;font-weight:700;margin-bottom:4px;}
+.blc-empty-sub{font-size:11px;color:var(--text3);font-family:var(--fm);}
+
+.blc-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.blc-icon{font-size:20px;}
+.blc-title{font-size:13px;font-weight:700;flex:1;}
+.blc-pill{
+  font-size:9px;font-weight:800;font-family:var(--fm);
+  padding:3px 9px;border-radius:20px;border:1px solid;
+  letter-spacing:.05em;text-transform:uppercase;
+}
+.blc-projected{
+  background:rgba(0,0,0,.18);border-radius:10px;padding:14px 16px;
+  margin-bottom:12px;text-align:center;
+}
+.blc-proj-lbl{
+  font-size:10px;font-weight:700;color:var(--text3);
+  font-family:var(--fm);letter-spacing:.07em;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.blc-proj-val{font-size:30px;font-weight:800;font-family:var(--fm);line-height:1;margin-bottom:5px;letter-spacing:-.02em;}
+.blc-proj-sub{font-size:10px;color:var(--text3);font-family:var(--fm);}
+
+.blc-delta-pos,.blc-delta-neg{
+  font-size:11px;font-family:var(--fm);padding:7px 11px;
+  border-radius:8px;margin-bottom:10px;text-align:center;
+}
+.blc-delta-pos{background:rgba(45,206,137,.15);color:var(--green);border:1px solid rgba(45,206,137,.3);}
+.blc-delta-neg{background:rgba(245,54,92,.12);color:var(--red);border:1px solid rgba(245,54,92,.25);}
+
+.blc-tiers{
+  display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:6px;
+  align-items:stretch;margin-bottom:12px;
+}
+.blc-tier{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:8px 6px;text-align:center;
+  display:flex;flex-direction:column;justify-content:center;
+}
+.blc-tier-arrow{
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text3);font-size:13px;
+}
+.blc-tier-lbl{font-size:8.5px;font-weight:700;color:var(--text3);font-family:var(--fm);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;line-height:1.2;}
+.blc-tier-val{font-size:14px;font-weight:800;font-family:var(--fm);line-height:1;margin-bottom:3px;}
+.blc-tier-sub{font-size:9px;color:var(--text3);font-family:var(--fm);}
+.blc-tier.tier-projected{background:rgba(94,156,245,.12);border-color:rgba(94,156,245,.4);}
+.blc-tier.tier-target-hit{background:rgba(45,206,137,.12);border-color:rgba(45,206,137,.4);}
+
+.blc-next{
+  display:flex;gap:10px;align-items:center;
+  background:rgba(94,156,245,.08);border:1px dashed rgba(94,156,245,.4);
+  border-radius:10px;padding:11px 13px;margin-bottom:10px;
+}
+.blc-next-icon{font-size:22px;flex-shrink:0;}
+.blc-next-content{flex:1;min-width:0;}
+.blc-next-title{font-size:12px;font-weight:700;margin-bottom:3px;}
+.blc-next-sub{font-size:11px;color:var(--text2);font-family:var(--fm);line-height:1.4;}
+
+.blc-warn{
+  display:flex;gap:8px;align-items:flex-start;
+  background:rgba(251,184,58,.12);border:1px solid rgba(251,184,58,.3);
+  color:var(--amber);border-radius:8px;padding:9px 12px;margin-bottom:10px;
+  font-size:11px;font-family:var(--fm);line-height:1.4;
+}
+.blc-foot{
+  font-size:10px;color:var(--text3);font-family:var(--fm);
+  text-align:center;line-height:1.5;
+}
+.blc-foot a{color:var(--accent);text-decoration:none;}
+.blc-foot a:hover{text-decoration:underline;}
+
+@media (max-width:480px){
+  .blc-tiers{grid-template-columns:1fr;}
+  .blc-tier-arrow{transform:rotate(90deg);}
+}
+
+/* ── KUDOS WALL ─────────────────────────────────────────────────── */
+.kudos-lb{
+  background:linear-gradient(135deg,rgba(251,184,58,.1),rgba(245,54,92,.05));
+  border:1px solid rgba(251,184,58,.3);border-radius:14px;
+  padding:16px 20px;margin-bottom:20px;
+}
+.kudos-lb-title{
+  font-size:12px;font-weight:800;color:var(--amber);
+  font-family:var(--fm);letter-spacing:.05em;
+  text-transform:uppercase;margin-bottom:12px;
+}
+.kudos-lb-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;
+}
+.kudos-lb-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:12px;text-align:center;
+  transition:all .15s;
+}
+.kudos-lb-card:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.2);}
+.kudos-lb-rank{font-size:24px;line-height:1;margin-bottom:6px;}
+.kudos-lb-name{font-size:13px;font-weight:700;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.kudos-lb-count{font-size:10px;color:var(--text3);font-family:var(--fm);}
+
+.kudos-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:16px 18px;position:relative;
+  transition:all .2s;display:flex;flex-direction:column;
+}
+.kudos-card:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.18);border-color:var(--border2);}
+.kudos-card.kudos-toyou{
+  background:linear-gradient(135deg,rgba(45,206,137,.08),var(--surface));
+  border-color:rgba(45,206,137,.4);
+}
+.kudos-toyou-badge{
+  position:absolute;top:-1px;right:-1px;
+  background:var(--green);color:#fff;
+  font-size:9px;font-weight:800;font-family:var(--fm);
+  padding:3px 9px;border-radius:0 14px 0 10px;
+  letter-spacing:.05em;text-transform:uppercase;
+}
+.kudos-card-cat{display:flex;align-items:center;gap:7px;margin-bottom:10px;}
+.kudos-cat-icon{font-size:20px;}
+.kudos-cat-label{
+  font-size:10px;font-weight:800;color:var(--text2);
+  font-family:var(--fm);letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.kudos-card-msg{
+  font-size:14px;line-height:1.55;color:var(--text);
+  margin-bottom:14px;flex:1;font-family:var(--fh);
+  word-wrap:break-word;
+}
+.kudos-card-meta{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding-top:10px;border-top:1px solid var(--border);margin-bottom:10px;
+}
+.kudos-card-people{
+  font-size:12px;font-family:var(--fm);color:var(--text2);
+  display:flex;align-items:center;gap:6px;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.kudos-card-people strong{color:var(--text);}
+.kudos-arrow{color:var(--text3);font-weight:400;}
+.kudos-card-time{font-size:10px;color:var(--text3);font-family:var(--fm);white-space:nowrap;}
+
+.kudos-reactions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.kudos-reaction{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:18px;padding:4px 9px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--fm);font-size:13px;
+  transition:all .15s;
+}
+.kudos-reaction:hover{transform:scale(1.06);border-color:var(--border2);}
+.kudos-reaction.reacted{background:rgba(94,156,245,.14);border-color:var(--accent);}
+.kudos-reaction-count{font-size:10px;font-weight:700;color:var(--text2);}
+.kudos-delete-btn{
+  background:none;border:none;color:var(--text3);
+  font-size:18px;cursor:pointer;padding:0 6px;line-height:1;
+  margin-left:auto;opacity:.5;transition:all .15s;
+}
+.kudos-delete-btn:hover{opacity:1;color:var(--red);}
+
+/* Kudos Modal — category grid */
+.kudos-cat-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+}
+.kudos-cat-option{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:11px 8px;cursor:pointer;
+  text-align:center;transition:all .15s;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+}
+.kudos-cat-option:hover{border-color:var(--border2);background:var(--surface3);}
+.kudos-cat-option.selected{
+  background:rgba(94,156,245,.14);border-color:var(--accent);
+  box-shadow:0 0 0 2px rgba(94,156,245,.2);
+}
+.kudos-cat-option-icon{font-size:22px;line-height:1;}
+.kudos-cat-option-label{
+  font-size:10px;font-weight:700;color:var(--text2);
+  font-family:var(--fm);text-align:center;line-height:1.2;
+}
+.kudos-cat-option.selected .kudos-cat-option-label{color:var(--text);}
+
+@media (max-width:520px){
+  .kudos-cat-grid{grid-template-columns:repeat(2,1fr);}
+}
+
 /* ── CELEBRATION OVERLAY ─────────────────────────────────────────── */
 #celebrationOverlay{
   position:fixed;inset:0;z-index:99999;
@@ -19997,6 +20289,854 @@ document.getElementById('raiseTicketModal')?.addEventListener('click', function(
 document.getElementById('ticketInboxModal')?.addEventListener('click', function(e){
   if(e.target === this) closeTicketInbox();
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// MODULE: END-OF-MONTH FORECAST (Dashboard)
+// ═══════════════════════════════════════════════════════════════════
+// Injects a forecast card into the dashboard showing projected month-end
+// based on current pace, plus the £/day required to hit target.
+//
+// Inserts itself into #cardsGrid container's parent right after the
+// teamSummaryRow on the dashboard, on every renderDashboard() call.
+
+(function(){
+
+function _fmtMoney(n){
+  if(n == null || isNaN(n)) return '£0';
+  const v = Math.round(n);
+  if(Math.abs(v) >= 1000000) return '£' + (v/1000000).toFixed(2).replace(/\.?0+$/,'') + 'm';
+  if(Math.abs(v) >= 10000)   return '£' + Math.round(v/1000) + 'k';
+  return '£' + v.toLocaleString();
+}
+
+function buildForecastCard(){
+  try{
+    const mk = APP.activeMonth;
+    if(!mk) return '';
+    const stats = calcStats(mk).filter(s => s.target > 0);
+    if(stats.length === 0) return '';
+    const teamTgt   = stats.reduce((s,p)=>s+p.target, 0);
+    const teamRev   = stats.reduce((s,p)=>s+p.revMTD, 0);
+    const teamNm    = stats.reduce((s,p)=>s+p.nmMTD, 0);
+    const allWD     = workingDatesInMonth(mk);
+    const totalWD   = allWD.length;
+    const today     = _localDateStr(new Date());
+    const wdElapsed = allWD.filter(d => d <= today).length;
+    const wdLeft    = Math.max(0, totalWD - wdElapsed);
+    if(totalWD === 0) return '';
+
+    // Two forecast methods:
+    // (1) Linear pace projection: rev/day_so_far * total_days
+    // (2) Run-rate target: what targets imply per remaining day
+    const revPerDay  = wdElapsed > 0 ? teamRev / wdElapsed : 0;
+    const projection = Math.round(revPerDay * totalWD);
+    const gap        = teamTgt - projection;
+    const onTrackPct = teamTgt > 0 ? Math.round(projection / teamTgt * 100) : 0;
+    const requiredPerDay = wdLeft > 0 ? Math.max(0, (teamTgt - teamRev) / wdLeft) : 0;
+    const currentRunRate = revPerDay; // £/day so far
+    const rateChange = currentRunRate > 0 ? (requiredPerDay / currentRunRate - 1) : 0;
+
+    // NM projection
+    const nmTarget    = stats.reduce((s,p)=>{
+      const ep = getPersonForMonth(p, mk);
+      return s + (ep.daysT||0) * (ep.nmPerDay || nmRate());
+    }, 0);
+    const nmPerDay    = wdElapsed > 0 ? teamNm / wdElapsed : 0;
+    const nmProjected = Math.round(nmPerDay * totalWD);
+    const nmGap       = nmTarget - nmProjected;
+
+    // Status colouring
+    let statusColor, statusLabel, statusIcon;
+    if(onTrackPct >= 100){
+      statusColor = 'var(--green)'; statusLabel = 'ON TRACK TO BEAT TARGET'; statusIcon = '🚀';
+    } else if(onTrackPct >= 95){
+      statusColor = 'var(--green)'; statusLabel = 'ON TRACK'; statusIcon = '✅';
+    } else if(onTrackPct >= 85){
+      statusColor = 'var(--amber)'; statusLabel = 'SLIGHTLY BEHIND'; statusIcon = '⚠️';
+    } else {
+      statusColor = 'var(--red)'; statusLabel = 'OFF PACE'; statusIcon = '🔴';
+    }
+
+    // Build per-team mini forecast
+    const _dynMgrs = (typeof _getDivisionManagers === 'function') ? _getDivisionManagers() : [];
+    const teamForecasts = _dynMgrs.map(m=>{
+      const members = (typeof _teamMembers === 'function') ? _teamMembers(m.name) || [] : [];
+      const ts = stats.filter(s => members.includes(s.name));
+      if(!ts.length) return null;
+      const tTgt = ts.reduce((s,p)=>s+p.target, 0);
+      const tRev = ts.reduce((s,p)=>s+p.revMTD, 0);
+      const tProj = wdElapsed > 0 ? Math.round(tRev / wdElapsed * totalWD) : 0;
+      const tPct = tTgt > 0 ? Math.round(tProj / tTgt * 100) : 0;
+      const tGap = tTgt - tProj;
+      const lbl = (typeof _teamLabel === 'function') ? _teamLabel(m.name) : m.name;
+      const col = tPct >= 100 ? 'var(--green)' : tPct >= 90 ? 'var(--amber)' : 'var(--red)';
+      return `<div class="fc-team-row">
+        <span class="fc-team-name">${_escapeHtml(lbl)}</span>
+        <span class="fc-team-proj">${_fmtMoney(tProj)}</span>
+        <span class="fc-team-pct" style="color:${col}">${tPct}%</span>
+        <span class="fc-team-gap" style="color:${tGap > 0 ? 'var(--red)' : 'var(--green)'}">${tGap > 0 ? '−' : '+'}${_fmtMoney(Math.abs(tGap))}</span>
+      </div>`;
+    }).filter(Boolean).join('');
+
+    return `
+      <div class="forecast-card">
+        <div class="fc-head">
+          <div class="fc-title">
+            <span class="fc-icon">${statusIcon}</span>
+            <span>End-of-Month Forecast</span>
+          </div>
+          <span class="fc-badge" style="background:${statusColor}22;color:${statusColor};border-color:${statusColor}55;">${statusLabel}</span>
+        </div>
+
+        <div class="fc-main-grid">
+          <div class="fc-main-col">
+            <div class="fc-main-lbl">Projected Finish</div>
+            <div class="fc-main-val" style="color:${statusColor}">${_fmtMoney(projection)}</div>
+            <div class="fc-main-sub">${onTrackPct}% of ${_fmtMoney(teamTgt)} target</div>
+          </div>
+          <div class="fc-main-col">
+            <div class="fc-main-lbl">${gap > 0 ? 'Gap to Target' : 'Surplus'}</div>
+            <div class="fc-main-val" style="color:${gap > 0 ? 'var(--red)' : 'var(--green)'}">${gap > 0 ? '−' : '+'}${_fmtMoney(Math.abs(gap))}</div>
+            <div class="fc-main-sub">at current pace of ${_fmtMoney(currentRunRate)}/day</div>
+          </div>
+          <div class="fc-main-col">
+            <div class="fc-main-lbl">Required Daily</div>
+            <div class="fc-main-val" style="color:${rateChange > 0.15 ? 'var(--red)' : rateChange > 0 ? 'var(--amber)' : 'var(--green)'}">${_fmtMoney(requiredPerDay)}</div>
+            <div class="fc-main-sub">${wdLeft} working day${wdLeft===1?'':'s'} left ${rateChange > 0 ? `· ${Math.round(rateChange*100)}% lift needed` : '· already on pace'}</div>
+          </div>
+        </div>
+
+        <div class="fc-narrative">
+          ${gap > 0
+            ? `At your current pace of <strong>${_fmtMoney(currentRunRate)}/day</strong>, you'll finish at <strong style="color:${statusColor}">${_fmtMoney(projection)}</strong> — that's <strong style="color:var(--red)">${_fmtMoney(gap)} short</strong> of the £${teamTgt.toLocaleString()} target. To close the gap, the team needs <strong>${_fmtMoney(requiredPerDay)}/day</strong> over the remaining ${wdLeft} working day${wdLeft===1?'':'s'}.`
+            : `The team is currently on pace to <strong style="color:var(--green)">beat target by ${_fmtMoney(Math.abs(gap))}</strong>. Maintain ${_fmtMoney(currentRunRate)}/day to lock it in.`
+          }
+        </div>
+
+        <div class="fc-secondary-grid">
+          <div class="fc-sec-block">
+            <div class="fc-sec-lbl">NM Projection</div>
+            <div class="fc-sec-val">${nmProjected} / ${Math.round(nmTarget)}</div>
+            <div class="fc-sec-sub" style="color:${nmGap > 0 ? 'var(--red)' : 'var(--green)'}">${nmGap > 0 ? '−' : '+'}${Math.abs(Math.round(nmGap))} NM ${nmGap > 0 ? 'short' : 'over'}</div>
+          </div>
+          <div class="fc-sec-block">
+            <div class="fc-sec-lbl">Days Elapsed</div>
+            <div class="fc-sec-val">${wdElapsed} / ${totalWD}</div>
+            <div class="fc-sec-sub">${Math.round(wdElapsed/totalWD*100)}% of month done</div>
+          </div>
+          <div class="fc-sec-block">
+            <div class="fc-sec-lbl">Active Consultants</div>
+            <div class="fc-sec-val">${stats.length}</div>
+            <div class="fc-sec-sub">contributing to forecast</div>
+          </div>
+        </div>
+
+        ${teamForecasts ? `
+        <div class="fc-team-section">
+          <div class="fc-team-title">Per-Team Breakdown</div>
+          <div class="fc-team-head">
+            <span class="fc-team-name">Team</span>
+            <span class="fc-team-proj">Projected</span>
+            <span class="fc-team-pct">% of Tgt</span>
+            <span class="fc-team-gap">Gap</span>
+          </div>
+          ${teamForecasts}
+        </div>` : ''}
+      </div>`;
+  } catch(err){
+    console.warn('forecast card error', err);
+    return '';
+  }
+}
+
+function injectForecast(){
+  try{
+    const dashPage = document.getElementById('page-dashboard');
+    if(!dashPage || !dashPage.classList.contains('active')) return;
+    const teamRow = document.getElementById('teamSummaryRow');
+    if(!teamRow) return;
+    let host = document.getElementById('forecastHost');
+    if(!host){
+      host = document.createElement('div');
+      host.id = 'forecastHost';
+      host.style.marginBottom = '16px';
+      teamRow.parentNode.insertBefore(host, teamRow.nextSibling);
+    }
+    host.innerHTML = buildForecastCard();
+  } catch(err){ console.warn('inject forecast', err); }
+}
+
+// Hook into renderDashboard so the card refreshes whenever the dashboard does
+if(typeof renderDashboard === 'function'){
+  const _origRenderDashboard = renderDashboard;
+  renderDashboard = function(){
+    const ret = _origRenderDashboard.apply(this, arguments);
+    setTimeout(injectForecast, 50);
+    return ret;
+  };
+}
+
+// Also expose globally so it can be called manually
+window._injectDashForecast = injectForecast;
+
+})(); // end forecast module
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MODULE: LIVE BONUS WIDGET (Consultant Daily)
+// ═══════════════════════════════════════════════════════════════════
+// Shows the consultant's projected month-end bonus based on current
+// performance, including:
+//   - Current bracket they're in
+//   - Bonus they'd earn if month ended right now
+//   - Bonus they'd earn at projected pace
+//   - £ to next bracket
+//   - "Today's sale boosted you by £X" delta indicator
+
+(function(){
+
+function buildLiveBonusCard(mk, myName){
+  try{
+    if(!mk || !myName) return '';
+    if(typeof bcBonusForRPD !== 'function') return ''; // bonus calc not loaded
+    const p = APP.people.find(x => x.name === myName);
+    if(!p) return '';
+    const ep = getPersonForMonth(p, mk);
+    const riskPerDay = ep?.riskPerDay || 0;
+    const daysT      = ep?.daysT || 0;
+    if(!daysT || !riskPerDay) {
+      return `<div class="bonus-live-card empty">
+        <div class="blc-empty-icon">💰</div>
+        <div class="blc-empty-title">Live Bonus Tracker</div>
+        <div class="blc-empty-sub">Set up your monthly target to see live bonus projections</div>
+      </div>`;
+    }
+
+    // Person type — try to read it from the entry config; fall back to 'nonsenior'
+    const personType = (ep.type === 'senior') ? 'senior' : 'nonsenior';
+
+    // MTD revenue
+    const entries = getEntries(mk);
+    const mine    = entries.filter(e => e.name === myName);
+    const revMTD  = mine.reduce((s,e)=>s + (e.revenue||0), 0);
+
+    // Days
+    const allWD     = workingDatesInMonth(mk);
+    const totalWD   = allWD.length;
+    const today     = _localDateStr(new Date());
+    const wdElapsed = allWD.filter(d => d <= today).length;
+
+    // Sick days
+    const sickDaysCount  = (typeof getSickWorkDayCount === 'function') ? getSickWorkDayCount(mk, myName) : 0;
+    const effectiveDaysT = Math.max(1, daysT - sickDaysCount);
+
+    // Current RPD (based on days worked / sale-producing days)
+    const daysWithSales = new Set(mine.filter(e=>(e.revenue||0)>0).map(e=>e.date)).size;
+    const currentRPD = daysWithSales > 0 ? revMTD / daysWithSales : 0;
+
+    // Projected month-end revenue based on current pace
+    const projectedRev = wdElapsed > 0 ? revMTD / wdElapsed * effectiveDaysT : 0;
+    const projectedRPD = effectiveDaysT > 0 ? projectedRev / effectiveDaysT : 0;
+
+    // Current "if month ended now" RPD (revMTD / effectiveDaysT — full month divisor)
+    const ifNowRPD = effectiveDaysT > 0 ? revMTD / effectiveDaysT : 0;
+
+    // Bonus calcs
+    const minRPD   = bcMinRPD();
+    const ifNow    = bcBonusForRPD(ifNowRPD, personType);
+    const projected = bcBonusForRPD(projectedRPD, personType);
+    const atTarget  = bcBonusForRPD(riskPerDay, personType);
+
+    // Next bracket calc
+    const STEP = 100; // £100 RPD steps
+    const nextBracketRPD = Math.floor(projectedRPD / STEP) * STEP + STEP;
+    const nextBonusInfo  = bcBonusForRPD(nextBracketRPD, personType);
+    const revToNextBracket = Math.max(0, nextBracketRPD * effectiveDaysT - projectedRev);
+    const bonusJump = nextBonusInfo.bonus - projected.bonus;
+
+    // Status colour
+    let projColor;
+    if(projected.bonus >= atTarget.bonus) projColor = 'var(--green)';
+    else if(projected.bonus >= atTarget.bonus * 0.75) projColor = 'var(--amber)';
+    else if(projected.bonus > 0) projColor = 'var(--blue)';
+    else projColor = 'var(--text3)';
+
+    const onTrack = projected.bonus >= atTarget.bonus;
+
+    // Today's contribution
+    const todayEntries = mine.filter(e => e.date === today);
+    const todayRev     = todayEntries.reduce((s,e)=>s+(e.revenue||0), 0);
+    let todayDelta = '';
+    if(todayRev > 0 && wdElapsed > 0){
+      const revBeforeToday = revMTD - todayRev;
+      // Recompute projection without today
+      const projBeforeToday = wdElapsed > 1 ? revBeforeToday / (wdElapsed - 1) * effectiveDaysT : 0;
+      const rpdBeforeToday  = effectiveDaysT > 0 ? projBeforeToday / effectiveDaysT : 0;
+      const bonusBeforeToday = bcBonusForRPD(rpdBeforeToday, personType).bonus;
+      const delta = projected.bonus - bonusBeforeToday;
+      if(delta > 0){
+        todayDelta = `<div class="blc-delta-pos">↑ Today's sales lifted your projected bonus by <strong>£${Math.round(delta).toLocaleString()}</strong></div>`;
+      } else if(delta < 0){
+        todayDelta = `<div class="blc-delta-neg">↓ Projected bonus dipped £${Math.round(Math.abs(delta)).toLocaleString()} since yesterday</div>`;
+      }
+    }
+
+    const belowMin = projectedRPD < minRPD;
+
+    return `
+      <div class="bonus-live-card">
+        <div class="blc-head">
+          <span class="blc-icon">💰</span>
+          <span class="blc-title">Live Bonus Tracker</span>
+          <span class="blc-pill" style="background:${onTrack?'var(--green-bg)':'var(--amber-bg)'};color:${onTrack?'var(--green)':'var(--amber)'};border-color:${onTrack?'var(--green)':'var(--amber)'}55;">
+            ${onTrack ? '✓ ON PACE' : belowMin ? 'BELOW MIN' : 'BUILDING'}
+          </span>
+        </div>
+
+        <div class="blc-projected">
+          <div class="blc-proj-lbl">Projected Bonus</div>
+          <div class="blc-proj-val" style="color:${projColor}">£${Math.round(projected.bonus).toLocaleString()}</div>
+          <div class="blc-proj-sub">at projected RPD of £${Math.round(projectedRPD).toLocaleString()}/day</div>
+        </div>
+
+        ${todayDelta}
+
+        <div class="blc-tiers">
+          <div class="blc-tier ${revMTD>0 && ifNow.bonus>0 ? 'tier-active':''}">
+            <div class="blc-tier-lbl">If Month Ended Now</div>
+            <div class="blc-tier-val">£${Math.round(ifNow.bonus).toLocaleString()}</div>
+            <div class="blc-tier-sub">RPD £${Math.round(ifNowRPD).toLocaleString()}</div>
+          </div>
+          <div class="blc-tier-arrow">→</div>
+          <div class="blc-tier tier-projected">
+            <div class="blc-tier-lbl">Projected (Current Pace)</div>
+            <div class="blc-tier-val" style="color:${projColor}">£${Math.round(projected.bonus).toLocaleString()}</div>
+            <div class="blc-tier-sub">RPD £${Math.round(projectedRPD).toLocaleString()}</div>
+          </div>
+          <div class="blc-tier-arrow">→</div>
+          <div class="blc-tier ${onTrack?'tier-target-hit':''}">
+            <div class="blc-tier-lbl">If You Hit Target</div>
+            <div class="blc-tier-val">£${Math.round(atTarget.bonus).toLocaleString()}</div>
+            <div class="blc-tier-sub">RPD £${Math.round(riskPerDay).toLocaleString()}</div>
+          </div>
+        </div>
+
+        ${bonusJump > 0 && revToNextBracket > 0 ? `
+        <div class="blc-next">
+          <div class="blc-next-icon">🎯</div>
+          <div class="blc-next-content">
+            <div class="blc-next-title">Next Bracket: £${nextBracketRPD.toLocaleString()} RPD</div>
+            <div class="blc-next-sub">Add <strong style="color:var(--accent)">£${Math.round(revToNextBracket).toLocaleString()}</strong> more revenue this month to unlock <strong style="color:var(--green)">+£${Math.round(bonusJump).toLocaleString()}</strong> bonus</div>
+          </div>
+        </div>` : ''}
+
+        ${belowMin ? `
+        <div class="blc-warn">
+          <span>⚠️</span>
+          <span>Projected RPD is below the £${minRPD.toLocaleString()}/day minimum threshold for any bonus payout.</span>
+        </div>` : ''}
+
+        <div class="blc-foot">Bonus calculations are projections based on current performance and may change. View the <a href="javascript:showPage('bonuscalc')">Bonus Calculator</a> for full breakdown.</div>
+      </div>`;
+  } catch(err){
+    console.warn('live bonus card error', err);
+    return '';
+  }
+}
+
+function injectLiveBonus(mk, myName){
+  try{
+    const cd = document.getElementById('page-consultantdaily');
+    if(!cd || !cd.classList.contains('active')) return;
+    const content = document.getElementById('cdContent');
+    if(!content) return;
+    // Find the right-side column (the second child of the grid)
+    const grid = content.querySelector('div[style*="grid-template-columns"]');
+    if(!grid) return;
+    const rightCol = grid.children[1];
+    if(!rightCol) return;
+    let host = document.getElementById('liveBonusHost');
+    if(!host){
+      host = document.createElement('div');
+      host.id = 'liveBonusHost';
+      // Insert at top of right column
+      rightCol.insertBefore(host, rightCol.firstChild);
+    }
+    host.innerHTML = buildLiveBonusCard(mk, myName);
+  } catch(err){ console.warn('inject live bonus', err); }
+}
+
+// Hook into renderConsultantDaily
+if(typeof renderConsultantDaily === 'function'){
+  const _origRenderConsultantDaily = renderConsultantDaily;
+  renderConsultantDaily = function(){
+    const ret = _origRenderConsultantDaily.apply(this, arguments);
+    setTimeout(()=>{
+      try{
+        const mk     = document.getElementById('cdMonth')?.value || APP.activeMonth;
+        const role   = _currentUser?.role || 'consultant';
+        let myName;
+        if((role === 'manager' || role === 'master') && document.getElementById('cdConsultantSel')?.value){
+          myName = document.getElementById('cdConsultantSel').value;
+        } else {
+          myName = _currentUser?.name || '';
+        }
+        injectLiveBonus(mk, myName);
+      } catch(e){ console.warn(e); }
+    }, 60);
+    return ret;
+  };
+}
+
+window._injectLiveBonus = injectLiveBonus;
+
+})(); // end live bonus module
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MODULE: PEER KUDOS (Shout-outs)
+// ═══════════════════════════════════════════════════════════════════
+// Lets any user nominate a teammate with a short message + category.
+// All nominations go to a shared "kudos wall" everyone can see.
+// Stored at perfDash2_core/kudos/{kudosId}
+//
+// Schema:
+//   { id, fromName, fromId, fromRole, fromDivKey,
+//     toName, toDivKey, message, category, createdAt,
+//     reactions: { [emoji]: { [uid]: name } } }
+
+const _kudosDbRef = () => (_db ? _db.ref('perfDash2_core/kudos') : null);
+
+let _kudosAll = {};
+let _kudosListener = null;
+
+const KUDOS_CATEGORIES = [
+  { key: 'team-player',   icon: '🤝', label: 'Team Player',     desc: 'Helped the team or covered for someone' },
+  { key: 'closer',        icon: '💪', label: 'Closer',          desc: 'Smashed a difficult sale' },
+  { key: 'mentor',        icon: '🎓', label: 'Mentor',          desc: 'Coached or supported a colleague' },
+  { key: 'positivity',    icon: '☀️', label: 'Positivity',      desc: 'Brought great energy to the floor' },
+  { key: 'goes-extra',    icon: '🚀', label: 'Goes the Extra Mile', desc: 'Went above and beyond' },
+  { key: 'compliance',    icon: '🛡️', label: 'Quality',         desc: 'Outstanding compliance / call quality' },
+  { key: 'innovation',    icon: '💡', label: 'Bright Idea',     desc: 'Suggested an improvement' },
+  { key: 'comeback',      icon: '🔥', label: 'Comeback Kid',    desc: 'Bounced back strong' }
+];
+
+const KUDOS_REACTIONS = ['👏','🙌','🔥','💯','❤️','🎉'];
+
+function startKudosListener(){
+  const ref = _kudosDbRef();
+  if(!ref) return;
+  if(_kudosListener){ try{ _kudosListener.off(); }catch(e){} }
+  _kudosListener = ref;
+  ref.on('value', snap=>{
+    _kudosAll = snap.val() || {};
+    if(document.getElementById('page-kudos')?.classList.contains('active')){
+      renderKudosWall();
+    }
+  }, err=>console.warn('kudos listener err', err));
+}
+
+function stopKudosListener(){
+  if(_kudosListener){ try{ _kudosListener.off(); }catch(e){} _kudosListener = null; }
+  _kudosAll = {};
+}
+
+// ── Inject the Kudos page and nav tab on first call ────────────────
+function _ensureKudosPageExists(){
+  if(document.getElementById('page-kudos')) return;
+  // Build the page
+  const page = document.createElement('div');
+  page.className = 'page';
+  page.id = 'page-kudos';
+  page.innerHTML = `
+    <div class="section-head">
+      <div>
+        <div class="section-title">🌟 Kudos Wall</div>
+        <div class="section-sub" id="kudos-sub">Shout-outs from teammates · recognise great work</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="kudosFilter" onchange="renderKudosWall()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:12px;font-family:var(--fm);color:var(--text);outline:none;cursor:pointer;">
+          <option value="all">All Kudos</option>
+          <option value="received">For Me</option>
+          <option value="sent">Sent by Me</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+        </select>
+        <button class="btn btn-p" onclick="openGiveKudosModal()" style="font-size:13px;padding:8px 18px;">
+          ✨ Give Kudos
+        </button>
+      </div>
+    </div>
+
+    <!-- Top recipients leaderboard strip -->
+    <div id="kudosLeaderboard"></div>
+
+    <!-- Wall -->
+    <div id="kudosWall" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:18px;"></div>
+
+    <!-- Empty state -->
+    <div id="kudosEmpty" style="display:none;padding:60px 20px;text-align:center;">
+      <div style="font-size:54px;margin-bottom:18px;opacity:.4;">🌟</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px;">No kudos yet</div>
+      <div style="font-size:13px;color:var(--text3);font-family:var(--fm);max-width:400px;margin:0 auto 20px;line-height:1.6;">Be the first to recognise a teammate. A small shout-out goes a long way.</div>
+      <button class="btn btn-p" onclick="openGiveKudosModal()" style="font-size:13px;padding:10px 24px;">✨ Give the First Kudos</button>
+    </div>
+  `;
+  // Insert before the dashboard page (so it appears in DOM but isn't active)
+  const firstPage = document.querySelector('.page');
+  if(firstPage) firstPage.parentNode.insertBefore(page, firstPage);
+
+  // Add the nav tab
+  const navTabs = document.querySelector('.nav-tabs');
+  if(navTabs){
+    const tab = document.createElement('button');
+    tab.className = 'nav-tab';
+    tab.id = 'kudosNavTab';
+    tab.setAttribute('onclick', "showPage('kudos')");
+    tab.innerHTML = '🌟 Kudos';
+    // Insert after Leaderboard
+    const lbTab = [...navTabs.children].find(t => /Leaderboard/i.test(t.textContent));
+    if(lbTab) navTabs.insertBefore(tab, lbTab.nextSibling);
+    else navTabs.appendChild(tab);
+  }
+
+  // Inject the modals
+  if(!document.getElementById('giveKudosModal')){
+    const modalsHtml = `
+      <div class="modal-overlay" id="giveKudosModal">
+        <div class="modal" style="width:560px;max-width:96vw;">
+          <div class="modal-title" style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:22px;">✨</span>
+            <span>Give Kudos</span>
+          </div>
+          <div style="font-size:12px;color:var(--text3);font-family:var(--fm);margin-bottom:18px;line-height:1.5;">
+            Recognise a teammate. Your name will appear on the wall.
+          </div>
+          <div class="rt-field">
+            <div class="rt-field-lbl">👤 Recognise</div>
+            <select id="kudosToSel" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;font-size:13px;font-family:var(--fm);color:var(--text);outline:none;"></select>
+          </div>
+          <div class="rt-field">
+            <div class="rt-field-lbl">🏷️ Category</div>
+            <div id="kudosCategoryGrid" class="kudos-cat-grid"></div>
+          </div>
+          <div class="rt-field">
+            <div class="rt-field-lbl">💬 Message</div>
+            <textarea id="kudosMessage" placeholder="What did they do that deserves recognition?" rows="3" maxlength="280"></textarea>
+            <div class="rt-helper">Keep it short and specific. Max 280 characters.</div>
+          </div>
+          <div class="modal-btns">
+            <button class="btn btn-s" onclick="closeGiveKudosModal()">Cancel</button>
+            <button class="btn btn-p" id="kudosSubmitBtn" onclick="submitKudos()">Send Kudos</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const div = document.createElement('div');
+    div.innerHTML = modalsHtml;
+    document.body.appendChild(div.firstElementChild);
+    // Close modal on overlay click + escape
+    document.getElementById('giveKudosModal').addEventListener('click', function(e){
+      if(e.target === this) closeGiveKudosModal();
+    });
+  }
+}
+
+function _kudosCategory(key){
+  return KUDOS_CATEGORIES.find(c => c.key === key) || KUDOS_CATEGORIES[0];
+}
+
+function renderKudosWall(){
+  _ensureKudosPageExists();
+  const wall    = document.getElementById('kudosWall');
+  const empty   = document.getElementById('kudosEmpty');
+  const lb      = document.getElementById('kudosLeaderboard');
+  const filter  = document.getElementById('kudosFilter')?.value || 'all';
+  if(!wall) return;
+  const me      = _currentUser?.name || '';
+  const myId    = _currentUser?.id || '';
+  const now     = Date.now();
+  const weekAgo  = now - 7  * 86400 * 1000;
+  const monthAgo = now - 30 * 86400 * 1000;
+
+  let items = Object.values(_kudosAll || {}).filter(k => k && k.id);
+
+  // Filter
+  if(filter === 'received') items = items.filter(k => k.toName === me);
+  else if(filter === 'sent') items = items.filter(k => k.fromName === me || k.fromId === myId);
+  else if(filter === 'week')  items = items.filter(k => new Date(k.createdAt).getTime() >= weekAgo);
+  else if(filter === 'month') items = items.filter(k => new Date(k.createdAt).getTime() >= monthAgo);
+
+  // Sort newest first
+  items.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+
+  // Top recipients leaderboard (last 30 days, all kudos)
+  const last30 = Object.values(_kudosAll || {}).filter(k => k && new Date(k.createdAt).getTime() >= monthAgo);
+  const counts = {};
+  last30.forEach(k => { counts[k.toName] = (counts[k.toName]||0) + 1; });
+  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0, 5);
+  if(lb && top.length > 0){
+    const trophy = ['🥇','🥈','🥉','🏅','🏅'];
+    lb.innerHTML = `
+      <div class="kudos-lb">
+        <div class="kudos-lb-title">🌟 Top Recognised — Last 30 Days</div>
+        <div class="kudos-lb-row">
+          ${top.map(([name, count], i)=>`
+            <div class="kudos-lb-card">
+              <div class="kudos-lb-rank">${trophy[i]}</div>
+              <div class="kudos-lb-name">${_escapeHtml(name)}</div>
+              <div class="kudos-lb-count">${count} kudos</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } else if(lb){
+    lb.innerHTML = '';
+  }
+
+  if(items.length === 0){
+    wall.style.display = 'none';
+    if(empty) empty.style.display = '';
+    return;
+  }
+  wall.style.display = '';
+  if(empty) empty.style.display = 'none';
+
+  wall.innerHTML = items.map(k=>{
+    const cat = _kudosCategory(k.category);
+    const dt = _fmtRelTime(k.createdAt);
+    const reactions = k.reactions || {};
+    const reactionCounts = KUDOS_REACTIONS.map(emoji => {
+      const list = reactions[emoji] || {};
+      const cnt = Object.keys(list).length;
+      const meReacted = !!list[myId || me];
+      return { emoji, cnt, meReacted };
+    });
+
+    const fromYou = (k.fromName === me || k.fromId === myId);
+    const toYou   = (k.toName === me);
+
+    return `
+      <div class="kudos-card ${toYou?'kudos-toyou':''}">
+        ${toYou ? '<div class="kudos-toyou-badge">For You</div>' : ''}
+        <div class="kudos-card-cat">
+          <span class="kudos-cat-icon">${cat.icon}</span>
+          <span class="kudos-cat-label">${cat.label}</span>
+        </div>
+        <div class="kudos-card-msg">${_escapeHtml(k.message || '')}</div>
+        <div class="kudos-card-meta">
+          <div class="kudos-card-people">
+            <strong>${_escapeHtml(k.fromName || 'Unknown')}</strong>
+            <span class="kudos-arrow">→</span>
+            <strong>${_escapeHtml(k.toName || 'Unknown')}</strong>
+          </div>
+          <div class="kudos-card-time">${dt}</div>
+        </div>
+        <div class="kudos-reactions">
+          ${reactionCounts.map(r=>`
+            <button class="kudos-reaction ${r.meReacted?'reacted':''}" onclick="toggleKudosReaction('${_escapeHtml(k.id)}','${r.emoji}')" title="${r.cnt} reaction${r.cnt===1?'':'s'}">
+              <span>${r.emoji}</span>
+              ${r.cnt > 0 ? `<span class="kudos-reaction-count">${r.cnt}</span>` : ''}
+            </button>
+          `).join('')}
+          ${fromYou ? `<button class="kudos-delete-btn" onclick="deleteKudos('${_escapeHtml(k.id)}')" title="Delete">×</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openGiveKudosModal(){
+  _ensureKudosPageExists();
+  if(!_currentUser){ showToast('Please sign in first', 'err'); return; }
+  const modal = document.getElementById('giveKudosModal');
+  if(!modal) return;
+
+  // Populate the "to" select with all known users (excluding self)
+  const sel = document.getElementById('kudosToSel');
+  if(sel){
+    const me = _currentUser.name || '';
+    let options = [];
+    // Get from APP.people (local consultants) and _allUsers (all users from Firebase)
+    const seen = new Set();
+    if(typeof APP !== 'undefined' && Array.isArray(APP.people)){
+      APP.people.forEach(p=>{
+        if(p && p.name && p.name !== me && !seen.has(p.name)){
+          seen.add(p.name);
+          options.push(p.name);
+        }
+      });
+    }
+    if(typeof _allUsers === 'object' && _allUsers){
+      Object.values(_allUsers).forEach(u=>{
+        if(u && u.name && u.name !== me && !seen.has(u.name)){
+          seen.add(u.name);
+          options.push(u.name);
+        }
+      });
+    }
+    options.sort();
+    sel.innerHTML = '<option value="">— Select a teammate —</option>' +
+      options.map(n => `<option value="${_escapeHtml(n)}">${_escapeHtml(n)}</option>`).join('');
+  }
+
+  // Build category grid
+  const catGrid = document.getElementById('kudosCategoryGrid');
+  if(catGrid){
+    catGrid.innerHTML = KUDOS_CATEGORIES.map((c,i)=>`
+      <div class="kudos-cat-option ${i===0?'selected':''}" data-cat="${c.key}" onclick="_selectKudosCategory('${c.key}')" title="${_escapeHtml(c.desc)}">
+        <span class="kudos-cat-option-icon">${c.icon}</span>
+        <span class="kudos-cat-option-label">${c.label}</span>
+      </div>
+    `).join('');
+  }
+
+  // Reset message
+  const msg = document.getElementById('kudosMessage');
+  if(msg) msg.value = '';
+
+  modal.classList.add('open');
+  setTimeout(()=>document.getElementById('kudosToSel')?.focus(), 80);
+}
+
+function _selectKudosCategory(catKey){
+  document.querySelectorAll('.kudos-cat-option').forEach(el=>{
+    el.classList.toggle('selected', el.dataset.cat === catKey);
+  });
+}
+
+function closeGiveKudosModal(){
+  document.getElementById('giveKudosModal')?.classList.remove('open');
+}
+
+function submitKudos(){
+  if(!_currentUser){ showToast('Not signed in','err'); return; }
+  const toName  = document.getElementById('kudosToSel')?.value || '';
+  const message = (document.getElementById('kudosMessage')?.value || '').trim();
+  const selectedCat = document.querySelector('.kudos-cat-option.selected')?.dataset.cat || KUDOS_CATEGORIES[0].key;
+  if(!toName){ showToast('Please select a teammate', 'err'); return; }
+  if(!message){ showToast('Please write a message', 'err'); return; }
+  if(toName === _currentUser.name){ showToast("You can't give kudos to yourself!", 'err'); return; }
+  const ref = _kudosDbRef();
+  if(!ref){ showToast('Not connected', 'err'); return; }
+
+  const btn = document.getElementById('kudosSubmitBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  const id = 'kud_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const k = {
+    id,
+    fromName:   _currentUser.name || 'Unknown',
+    fromId:     _currentUser.id || '',
+    fromRole:   _currentUser.role || 'consultant',
+    fromDivKey: _currentUser.divKey || _currentDivKey || '',
+    toName,
+    message:    message.slice(0, 280),
+    category:   selectedCat,
+    createdAt:  new Date().toISOString(),
+    reactions:  {}
+  };
+  ref.child(id).set(k)
+    .then(()=>{
+      if(btn){ btn.disabled = false; btn.textContent = 'Send Kudos'; }
+      closeGiveKudosModal();
+      showToast(`✓ Kudos sent to ${toName}!`);
+    })
+    .catch(err=>{
+      console.error('kudos send failed', err);
+      if(btn){ btn.disabled = false; btn.textContent = 'Send Kudos'; }
+      showToast('Failed: ' + err.message, 'err');
+    });
+}
+
+function toggleKudosReaction(kudosId, emoji){
+  if(!_currentUser){ showToast('Sign in to react', 'err'); return; }
+  const k = _kudosAll[kudosId];
+  if(!k) return;
+  const ref = _kudosDbRef();
+  if(!ref) return;
+  const uid = _currentUser.id || _currentUser.name;
+  const reactions = k.reactions || {};
+  const list = reactions[emoji] || {};
+  const path = `${kudosId}/reactions/${emoji}/${uid}`;
+  if(list[uid]){
+    // Remove reaction
+    ref.child(`${kudosId}/reactions/${emoji}/${uid}`).remove().catch(err=>console.warn(err));
+  } else {
+    // Add reaction
+    ref.child(`${kudosId}/reactions/${emoji}/${uid}`).set(_currentUser.name || 'Unknown').catch(err=>console.warn(err));
+  }
+}
+
+function deleteKudos(kudosId){
+  const k = _kudosAll[kudosId];
+  if(!k) return;
+  if(k.fromName !== _currentUser?.name && k.fromId !== _currentUser?.id && _currentUser?.role !== 'master'){
+    showToast('You can only delete your own kudos', 'err');
+    return;
+  }
+  if(!confirm('Delete this kudos? This cannot be undone.')) return;
+  const ref = _kudosDbRef();
+  if(!ref) return;
+  ref.child(kudosId).remove()
+    .then(()=>showToast('Kudos deleted'))
+    .catch(err=>showToast('Failed: '+err.message, 'err'));
+}
+
+// Make sure the kudos page is registered with showPage. We need to wrap showPage
+// so when 'kudos' is shown it triggers a render.
+if(typeof showPage === 'function'){
+  const _origShowPage = showPage;
+  showPage = function(id){
+    if(id === 'kudos') _ensureKudosPageExists();
+    const ret = _origShowPage.apply(this, arguments);
+    if(id === 'kudos'){
+      setTimeout(()=>{ try{ renderKudosWall(); }catch(e){ console.warn(e); } }, 50);
+    }
+    return ret;
+  };
+}
+
+// Hook startup so the Kudos page exists once user is logged in
+if(typeof _startWithRole === 'function'){
+  const _origStartKudos = _startWithRole;
+  _startWithRole = function(){
+    const ret = _origStartKudos.apply(this, arguments);
+    try{
+      _ensureKudosPageExists();
+      startKudosListener();
+    } catch(e){ console.warn('kudos init', e); }
+    return ret;
+  };
+}
+
+// Hook logout to stop kudos listener
+if(typeof logoutUser === 'function'){
+  const _origLogoutKudos = logoutUser;
+  logoutUser = function(){
+    try{ stopKudosListener(); closeGiveKudosModal(); }catch(e){}
+    return _origLogoutKudos.apply(this, arguments);
+  };
+}
+
+// Also kick startup after a moment in case of session-restore
+setTimeout(()=>{
+  try{
+    if(_currentUser){
+      _ensureKudosPageExists();
+      startKudosListener();
+    }
+  }catch(e){ console.warn(e); }
+}, 1800);
+
+// Escape closes give-kudos modal
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    if(document.getElementById('giveKudosModal')?.classList.contains('open')) closeGiveKudosModal();
+  }
+});
+
 </script>
 
 </body>
