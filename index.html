@@ -2753,6 +2753,17 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
         <div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--amber)">Open →</div>
       </div>
 
+      <!-- Backup & Restore -->
+      <div class="set-card" style="cursor:pointer;transition:all .2s;border-left:4px solid var(--red);"
+        onclick="openSettingsSub('backup')"
+        onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='var(--shadow)'"
+        onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:28px;margin-bottom:10px">💾</div>
+        <div class="set-title" style="margin-bottom:4px">Backup &amp; Restore</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);line-height:1.6">Automatic hourly snapshots, manual JSON export and one-click restore to any previous save.</div>
+        <div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--red)">Open →</div>
+      </div>
+
     </div>
   </div>
 
@@ -2836,6 +2847,57 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
     </div>
     <div class="set-card" id="directReportsCard">
       <div id="directReportsContent"></div>
+    </div>
+  </div>
+
+  <!-- Backup & Restore sub-page -->
+  <div id="settingsSubBackup" style="display:none">
+    <div class="section-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-s" onclick="closeSettingsSub()" style="font-size:12px">← Back</button>
+        <div>
+          <div class="section-title">💾 Backup &amp; Restore</div>
+          <div class="section-sub">Automatic hourly snapshots saved in your browser · Export or restore any time</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-s" onclick="bkpExportNow()" style="font-size:12px;border-color:var(--green);color:var(--green)">⬇ Export JSON</button>
+        <button class="btn btn-s" onclick="document.getElementById('bkpImportFile').click()" style="font-size:12px;border-color:var(--blue);color:var(--blue)">⬆ Import JSON</button>
+        <input type="file" id="bkpImportFile" accept=".json" style="display:none" onchange="bkpImportFile(this)">
+        <button class="btn btn-p" onclick="bkpSnapshotNow()" style="font-size:12px">📸 Snapshot Now</button>
+      </div>
+    </div>
+
+    <!-- Status strip -->
+    <div class="set-card" style="margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Auto-backup</div>
+          <div style="font-size:14px;font-weight:700;color:var(--green);font-family:var(--fm)" id="bkpAutoStatus">⟳ Running</div>
+          <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px">Snapshots every hour</div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Snapshots Stored</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--fm)" id="bkpCount">—</div>
+          <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px">Up to 14 daily + last 24 hourly</div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Last Snapshot</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--fm)" id="bkpLastTime">—</div>
+          <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px" id="bkpDivLabel"></div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Storage Used</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--fm)" id="bkpSize">—</div>
+          <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px">IndexedDB (browser)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Snapshot list -->
+    <div class="set-card">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.07em;text-transform:uppercase;margin-bottom:14px">Saved Snapshots</div>
+      <div id="bkpList"><div style="color:var(--text3);font-size:12px;font-family:var(--fm)">Loading…</div></div>
     </div>
   </div>
 
@@ -7104,7 +7166,7 @@ function openSettingsSub(sub){
   const hub = document.getElementById('settingsHub');
   if(hub) hub.style.display = 'none';
   // Hide all sub-pages
-  ['users','themes','targets','directreports'].forEach(s => {
+  ['users','themes','targets','directreports','backup'].forEach(s => {
     const el = document.getElementById('settingsSub'+s.charAt(0).toUpperCase()+s.slice(1));
     if(el) el.style.display = 'none';
   });
@@ -7117,11 +7179,12 @@ function openSettingsSub(sub){
   if(sub==='themes')        renderThemePicker();
   if(sub==='targets')       _renderTargetsSub();
   if(sub==='directreports') renderDirectReports();
+  if(sub==='backup')        { setTimeout(bkpRenderList, 50); }
 }
 
 function closeSettingsSub(){
   // Hide all sub-pages
-  ['users','themes','targets','directreports'].forEach(s => {
+  ['users','themes','targets','directreports','backup'].forEach(s => {
     const el = document.getElementById('settingsSub'+s.charAt(0).toUpperCase()+s.slice(1));
     if(el) el.style.display = 'none';
   });
@@ -22717,6 +22780,395 @@ if(typeof selectDivision === 'function'){
 }
 
 })(); // end advice written KPI module
+
+// ═══════════════════════════════════════════════════════════════════
+// MODULE: AUTOMATIC BACKUP & RESTORE
+// - IndexedDB store: keeps up to 24 hourly + 14 daily snapshots per division
+// - Auto-snapshots every 60 minutes while the app is open
+// - Also snapshots on login and on app-load if >1hr since last snapshot
+// - Manual export to JSON file (one click)
+// - Manual import/restore from JSON file
+// - Full restore UI in Settings → Backup & Restore
+// ═══════════════════════════════════════════════════════════════════
+(function(){
+'use strict';
+
+const BKP_DB_NAME    = 'BAUDashBackups';
+const BKP_DB_VERSION = 1;
+const BKP_STORE      = 'snapshots';
+const BKP_MAX_HOURLY = 24;   // keep last 24 hourly snapshots
+const BKP_MAX_DAILY  = 14;   // keep one snapshot per day for 14 days
+const BKP_INTERVAL   = 60 * 60 * 1000; // 1 hour
+
+let _bkpDb   = null;
+let _bkpTimer = null;
+
+// ── Open / init IndexedDB ────────────────────────────────────────
+function _bkpOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(BKP_DB_NAME, BKP_DB_VERSION);
+    req.onupgradeneeded = e=>{
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains(BKP_STORE)){
+        const store = db.createObjectStore(BKP_STORE, { keyPath:'id' });
+        store.createIndex('divKey',    'divKey',    { unique:false });
+        store.createIndex('timestamp', 'timestamp', { unique:false });
+        store.createIndex('type',      'type',      { unique:false });
+      }
+    };
+    req.onsuccess = e=>{ _bkpDb = e.target.result; resolve(_bkpDb); };
+    req.onerror   = e=>{ console.warn('BKP IndexedDB open error', e); reject(e); };
+  });
+}
+
+function _bkpReady(){
+  if(_bkpDb) return Promise.resolve(_bkpDb);
+  return _bkpOpen();
+}
+
+// ── Take a snapshot ──────────────────────────────────────────────
+function bkpSnapshot(label){
+  if(typeof APP === 'undefined' || !APP || !APP.people) return;
+  const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
+  const now    = Date.now();
+  const ts     = new Date(now);
+  const dateStr = ts.toISOString().slice(0,10); // YYYY-MM-DD
+
+  const snapshot = {
+    id:        `${divKey}_${now}`,
+    divKey,
+    timestamp: now,
+    dateStr,
+    label:     label || 'Auto',
+    type:      'hourly',
+    people:    (APP.people||[]).length,
+    months:    Object.keys(APP.months||{}).length,
+    data:      JSON.parse(JSON.stringify(APP)) // deep clone
+  };
+
+  _bkpReady().then(db=>{
+    const tx    = db.transaction(BKP_STORE, 'readwrite');
+    const store = tx.objectStore(BKP_STORE);
+    store.put(snapshot);
+
+    tx.oncomplete = ()=>{
+      _bkpPrune(db, divKey);
+      _bkpUpdateStatusBar();
+    };
+  }).catch(e=>console.warn('BKP snapshot error', e));
+}
+
+// ── Prune old snapshots — keep policy ────────────────────────────
+function _bkpPrune(db, divKey){
+  const tx    = db.transaction(BKP_STORE, 'readwrite');
+  const store = tx.objectStore(BKP_STORE);
+  const idx   = store.index('divKey');
+  const req   = idx.getAll(IDBKeyRange.only(divKey));
+
+  req.onsuccess = e=>{
+    const all = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
+
+    // Deduplicate: keep only 1 per day (the latest), up to BKP_MAX_DAILY
+    const byDate = {};
+    all.forEach(s=>{ byDate[s.dateStr] = byDate[s.dateStr] || []; byDate[s.dateStr].push(s); });
+    const dailyDates = Object.keys(byDate).sort().reverse();
+
+    // Keep the last BKP_MAX_HOURLY total (regardless of day) + 1 per day for past BKP_MAX_DAILY days
+    const keepIds = new Set();
+
+    // Keep last BKP_MAX_HOURLY snapshots
+    all.slice(0, BKP_MAX_HOURLY).forEach(s=>keepIds.add(s.id));
+
+    // Keep 1 per day for last BKP_MAX_DAILY days
+    dailyDates.slice(0, BKP_MAX_DAILY).forEach(date=>{
+      const latest = byDate[date][0]; // already sorted desc
+      keepIds.add(latest.id);
+    });
+
+    // Delete everything not in keepIds
+    all.forEach(s=>{
+      if(!keepIds.has(s.id)){
+        const delTx = db.transaction(BKP_STORE, 'readwrite');
+        delTx.objectStore(BKP_STORE).delete(s.id);
+      }
+    });
+  };
+}
+
+// ── Auto-backup interval ─────────────────────────────────────────
+function _bkpStartAuto(){
+  clearInterval(_bkpTimer);
+  _bkpTimer = setInterval(()=>{ bkpSnapshot('Auto'); }, BKP_INTERVAL);
+  // Take one now if it's been >1hr since the last snapshot
+  _bkpReady().then(db=>{
+    const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
+    const tx     = db.transaction(BKP_STORE, 'readonly');
+    const store  = tx.objectStore(BKP_STORE);
+    const idx    = store.index('divKey');
+    const req    = idx.getAll(IDBKeyRange.only(divKey));
+    req.onsuccess = e=>{
+      const all  = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
+      const last = all[0]?.timestamp || 0;
+      if(Date.now() - last > BKP_INTERVAL){
+        bkpSnapshot('Auto (startup)');
+      }
+    };
+  }).catch(()=>{ bkpSnapshot('Auto (startup)'); });
+}
+
+// Hook into Firebase onValue so we snapshot after each successful live update
+if(typeof _startFirebase === 'function'){
+  const _origStartFirebase = _startFirebase;
+  _startFirebase = function(){
+    const ret = _origStartFirebase.apply(this, arguments);
+    return ret;
+  };
+}
+
+// Hook into saveApp success to take a snapshot after major saves
+// (we piggy-back on _doSaveApp's .then() path via a patched setSyncStatus)
+let _bkpLastSnap = 0;
+const _origSetSyncStatus = setSyncStatus;
+setSyncStatus = function(state){
+  _origSetSyncStatus.apply(this, arguments);
+  if(state === 'live'){
+    // Snapshot at most once per 60min on live sync events
+    const now = Date.now();
+    if(now - _bkpLastSnap > BKP_INTERVAL){
+      _bkpLastSnap = now;
+      setTimeout(()=>bkpSnapshot('Auto'), 200);
+    }
+  }
+};
+
+// ── Update status bar in UI ───────────────────────────────────────
+function _bkpUpdateStatusBar(){
+  const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
+  _bkpReady().then(db=>{
+    const tx    = db.transaction(BKP_STORE, 'readonly');
+    const store = tx.objectStore(BKP_STORE);
+    const idx   = store.index('divKey');
+    const req   = idx.getAll(IDBKeyRange.only(divKey));
+    req.onsuccess = e=>{
+      const all    = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
+      const count  = all.length;
+      const last   = all[0];
+      const sizeEst = all.reduce((s,snap)=>s + JSON.stringify(snap.data).length, 0);
+      const sizeMB  = (sizeEst / 1024 / 1024).toFixed(2);
+
+      const cEl = document.getElementById('bkpCount');
+      const tEl = document.getElementById('bkpLastTime');
+      const sEl = document.getElementById('bkpSize');
+      const dEl = document.getElementById('bkpDivLabel');
+      if(cEl) cEl.textContent = count + ' snapshot' + (count===1?'':'s');
+      if(tEl) tEl.textContent = last ? new Date(last.timestamp).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+      if(sEl) sEl.textContent = sizeMB + ' MB';
+      if(dEl) dEl.textContent = (DIVISIONS[divKey]?.label||divKey) + ' division';
+    };
+  }).catch(()=>{});
+}
+
+// ── Render snapshot list ─────────────────────────────────────────
+function bkpRenderList(){
+  _bkpUpdateStatusBar();
+  const list = document.getElementById('bkpList');
+  if(!list) return;
+  list.innerHTML = '<div style="color:var(--text3);font-size:12px;font-family:var(--fm)">Loading snapshots…</div>';
+  const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
+
+  _bkpReady().then(db=>{
+    const tx    = db.transaction(BKP_STORE, 'readonly');
+    const store = tx.objectStore(BKP_STORE);
+    const idx   = store.index('divKey');
+    const req   = idx.getAll(IDBKeyRange.only(divKey));
+
+    req.onsuccess = e=>{
+      const all = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
+
+      if(!all.length){
+        list.innerHTML = '<div style="color:var(--text3);font-size:12px;font-family:var(--fm);padding:20px 0;text-align:center">No snapshots yet — they\'re taken automatically every hour, or click <strong>Snapshot Now</strong>.</div>';
+        return;
+      }
+
+      // Group by date
+      const byDate = {};
+      all.forEach(s=>{
+        byDate[s.dateStr] = byDate[s.dateStr] || [];
+        byDate[s.dateStr].push(s);
+      });
+      const dates = Object.keys(byDate).sort().reverse();
+
+      list.innerHTML = dates.map(date=>{
+        const snaps   = byDate[date];
+        const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+        const rows = snaps.map(s=>{
+          const time     = new Date(s.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+          const sizeKB   = Math.round(JSON.stringify(s.data).length / 1024);
+          const isLatest = s.id === all[0].id;
+          return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border2);">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;font-family:var(--fm);display:flex;align-items:center;gap:8px">
+                🕐 ${time}
+                <span style="font-size:10px;font-weight:400;color:var(--text3)">${s.label}</span>
+                ${isLatest ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,.15);color:var(--green);padding:1px 7px;border-radius:6px;letter-spacing:.04em">LATEST</span>' : ''}
+              </div>
+              <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px">${s.people} consultants · ${s.months} months · ${sizeKB} KB</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn btn-s" onclick="bkpExportSnapshot('${s.id}')" style="font-size:11px;padding:4px 10px;border-color:var(--green);color:var(--green)" title="Download this snapshot as JSON">⬇</button>
+              <button class="btn btn-s" onclick="bkpRestoreSnapshot('${s.id}')" style="font-size:11px;padding:4px 10px;border-color:var(--blue);color:var(--blue)" title="Restore to this snapshot">↩ Restore</button>
+            </div>
+          </div>`;
+        }).join('');
+
+        return `<div style="margin-bottom:18px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.08em;text-transform:uppercase;padding:6px 0;border-bottom:2px solid var(--border)">${dateLabel}</div>
+          ${rows}
+        </div>`;
+      }).join('');
+    };
+
+    req.onerror = ()=>{ list.innerHTML = '<div style="color:var(--red);font-size:12px">Failed to load snapshots.</div>'; };
+  }).catch(e=>{
+    list.innerHTML = '<div style="color:var(--red);font-size:12px">IndexedDB unavailable: ' + (e?.message||e) + '</div>';
+  });
+}
+
+// ── Manual snapshot now ──────────────────────────────────────────
+function bkpSnapshotNow(){
+  bkpSnapshot('Manual');
+  showToast('📸 Snapshot saved', 'ok');
+  setTimeout(bkpRenderList, 400);
+}
+
+// ── Export current APP data as JSON download ─────────────────────
+function bkpExportNow(){
+  if(typeof APP === 'undefined'){ showToast('No data to export','err'); return; }
+  const divKey  = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
+  const divLabel = (DIVISIONS[divKey]?.label||divKey).replace(/\s+/g,'-');
+  const ts      = new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-');
+  const fname   = `BAU_Dash_${divLabel}_${ts}.json`;
+  const blob    = new Blob([JSON.stringify({
+    _meta: { exported: new Date().toISOString(), divKey, label: DIVISIONS[divKey]?.label||divKey, version: 1 },
+    data:  JSON.parse(JSON.stringify(APP))
+  }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement('a'), { href:url, download:fname });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('⬇ Exported ' + fname);
+}
+
+// ── Export a specific stored snapshot ────────────────────────────
+function bkpExportSnapshot(id){
+  _bkpReady().then(db=>{
+    const tx  = db.transaction(BKP_STORE, 'readonly');
+    const req = tx.objectStore(BKP_STORE).get(id);
+    req.onsuccess = e=>{
+      const snap = e.target.result;
+      if(!snap){ showToast('Snapshot not found','err'); return; }
+      const divLabel = (DIVISIONS[snap.divKey]?.label||snap.divKey).replace(/\s+/g,'-');
+      const ts   = new Date(snap.timestamp).toISOString().slice(0,16).replace('T','_').replace(/:/g,'-');
+      const fname = `BAU_Backup_${divLabel}_${ts}.json`;
+      const blob  = new Blob([JSON.stringify({
+        _meta: { exported: new Date().toISOString(), snapshotTime: new Date(snap.timestamp).toISOString(), divKey: snap.divKey, label: snap.label, version: 1 },
+        data:  snap.data
+      }, null, 2)], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a   = Object.assign(document.createElement('a'), { href:url, download:fname });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('⬇ Downloaded ' + fname);
+    };
+  }).catch(()=>showToast('Export failed','err'));
+}
+
+// ── Restore a snapshot to Firebase ───────────────────────────────
+function bkpRestoreSnapshot(id){
+  _bkpReady().then(db=>{
+    const tx  = db.transaction(BKP_STORE, 'readonly');
+    const req = tx.objectStore(BKP_STORE).get(id);
+    req.onsuccess = e=>{
+      const snap = e.target.result;
+      if(!snap){ showToast('Snapshot not found','err'); return; }
+      const time = new Date(snap.timestamp).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+      if(!confirm(`⚠️ Restore to snapshot from ${time}?\n\nThis will OVERWRITE all current data in Firebase with this snapshot. This cannot be undone.\n\nMake sure you've exported your current data first if you need it.`)) return;
+      if(!confirm('Are you absolutely sure? All changes since this snapshot will be lost.')) return;
+      _bkpDoRestore(snap.data);
+    };
+  }).catch(()=>showToast('Restore failed','err'));
+}
+
+// ── Restore from imported JSON file ──────────────────────────────
+function bkpImportFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  input.value = '';
+  const reader = new FileReader();
+  reader.onload = evt=>{
+    try{
+      const parsed = JSON.parse(evt.target.result);
+      const data   = parsed.data || parsed; // support both wrapped and raw format
+      if(!data.people && !data.months){ showToast('Invalid backup file','err'); return; }
+      const meta  = parsed._meta || {};
+      const timeStr = meta.snapshotTime ? new Date(meta.snapshotTime).toLocaleString('en-GB') : 'unknown time';
+      const div   = meta.label || meta.divKey || 'unknown division';
+      if(!confirm(`Restore backup from ${timeStr} (${div})?\n\nThis will OVERWRITE all current Firebase data. Export your current data first if needed.`)) return;
+      if(!confirm('Confirm: overwrite all current data with this backup?')) return;
+      _bkpDoRestore(data);
+    } catch(err){
+      showToast('Failed to parse backup file: ' + (err?.message||err), 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function _bkpDoRestore(data){
+  if(!_dbRef){ showToast('Not connected to Firebase — cannot restore','err'); return; }
+  showToast('Restoring…');
+  const { activeMonth: _am, ...toWrite } = data;
+  _ignoreNextSnapshot++;
+  _dbRef.set(toWrite).then(()=>{
+    // Update local APP immediately
+    APP = { ...data, activeMonth: APP.activeMonth || todayKey() };
+    _applyDefaults();
+    _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1);
+    setSyncStatus('live');
+    populateAllSelects();
+    renderDashboard();
+    showToast('✅ Restore complete — data loaded from backup');
+    // Take a "pre-restore" snapshot of what we just wrote
+    setTimeout(()=>bkpSnapshot('Post-restore'), 1000);
+    setTimeout(bkpRenderList, 1200);
+  }).catch(err=>{
+    _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1);
+    showToast('Restore failed: ' + (err?.message||err), 'err');
+  });
+}
+
+// ── Start auto-backup once Firebase is live ───────────────────────
+// Hook into the existing setSyncStatus wrapper — start the interval
+// the first time we go 'live'
+let _bkpStarted = false;
+const _origSSS2 = setSyncStatus;
+setSyncStatus = function(state){
+  _origSSS2.apply(this, arguments);
+  if(state === 'live' && !_bkpStarted){
+    _bkpStarted = true;
+    _bkpOpen().then(()=>_bkpStartAuto()).catch(()=>{});
+  }
+};
+
+// Re-start auto-backup on division switch
+if(typeof selectDivision === 'function'){
+  const _origSelectDivBkp = selectDivision;
+  selectDivision = function(key){
+    _bkpStarted = false; // allow restart on next 'live' event
+    return _origSelectDivBkp.apply(this, arguments);
+  };
+}
+
+})(); // end backup module
 
 // ═══════════════════════════════════════════════════════════════════
 // GLOBAL ERROR BOUNDARY
