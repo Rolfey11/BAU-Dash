@@ -21189,6 +21189,620 @@ document.addEventListener('keydown', function(e){
 
 </script>
 
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// MODULE: ADVICE DIVISION — QUARTERLY BONUS CALCULATOR
+// Bonus is calculated each quarter (Q1=Jan–Mar, Q2=Apr–Jun,
+// Q3=Jul–Sep, Q4=Oct–Dec) based on average RPD across the quarter.
+// Pay plan (from official document):
+//   Target RPD  │  Non-Senior  │  Senior
+//   £450        │  £3,677      │  £1,902
+//   £475        │  £3,977      │  £2,202
+//   £500        │  £4,277      │  £2,502
+//   £525 (tgt)  │  £4,577      │  £2,802   ← highlighted row
+//   £550        │  £4,877      │  £3,102
+//   £575        │  £5,177      │  £3,402
+//   £600        │  £5,477      │  £3,702
+//   £625        │  £5,777      │  £4,002
+//   £650        │  £6,077      │  £4,302
+//   £675        │  £6,377      │  £4,602
+//   £700        │  £6,677      │  £4,902
+// ═══════════════════════════════════════════════════════════════════
+(function(){
+
+// ── Pay plan bracket tables ───────────────────────────────────────
+const BC_ADVICE_BRACKETS = {
+  nonsenior: [
+    [450,3677],[475,3977],[500,4277],[525,4577],[550,4877],
+    [575,5177],[600,5477],[625,5777],[650,6077],[675,6377],[700,6677]
+  ],
+  senior: [
+    [450,1902],[475,2202],[500,2502],[525,2802],[550,3102],
+    [575,3402],[600,3702],[625,4002],[650,4302],[675,4602],[700,4902]
+  ]
+};
+
+// ── Core helpers ──────────────────────────────────────────────────
+function bcIsAdvice(){
+  return typeof _currentDivKey !== 'undefined' && _currentDivKey === 'advice';
+}
+
+function adviceCurrentQuarter(){
+  const now = new Date();
+  const q   = Math.ceil((now.getMonth() + 1) / 3);
+  return `Q${q}-${now.getFullYear()}`;
+}
+
+function adviceQuarterMonths(qStr){
+  if(!qStr) return [];
+  const [q, y]  = qStr.split('-');
+  const qNum    = parseInt(q.replace('Q',''));
+  const year    = parseInt(y);
+  const sm      = (qNum - 1) * 3 + 1;
+  return [sm, sm+1, sm+2].map(m => `${year}-${String(m).padStart(2,'0')}`);
+}
+
+function adviceQuarterLabel(qStr){
+  if(!qStr) return '';
+  const [q, y]  = qStr.split('-');
+  const n       = parseInt(q.replace('Q',''));
+  const names   = {1:'Q1 (Jan–Mar)',2:'Q2 (Apr–Jun)',3:'Q3 (Jul–Sep)',4:'Q4 (Oct–Dec)'};
+  return `${names[n] || q} ${y}`;
+}
+
+function adviceQuarterWD(qStr){
+  return adviceQuarterMonths(qStr).reduce((s,mk) => {
+    return s + (typeof bcCountMonthWorkDays === 'function' ? bcCountMonthWorkDays(mk) : 22);
+  }, 0);
+}
+
+function adviceQuarterYourDays(qStr){
+  return adviceQuarterMonths(qStr).reduce((s,mk) => {
+    return s + (typeof bcCountYourWorkDays === 'function' ? bcCountYourWorkDays(mk) : 22);
+  }, 0);
+}
+
+function adviceQuarterElapsedWD(qStr){
+  return adviceQuarterMonths(qStr).reduce((s,mk) => {
+    return s + (typeof bcCountElapsedWorkDays === 'function' ? bcCountElapsedWorkDays(mk) : 0);
+  }, 0);
+}
+
+function adviceQuarterRevenue(qStr, myName){
+  let total = 0;
+  for(const mk of adviceQuarterMonths(qStr)){
+    const entries = typeof getEntries === 'function' ? getEntries(mk) : [];
+    total += entries
+      .filter(e => e.name === myName)
+      .reduce((s,e) => s + (e.revenue || 0), 0);
+  }
+  return total;
+}
+
+function adviceBonusForRPD(rpd, type){
+  if(rpd < 450) return { bonus:0, bracket:0 };
+  const cappedRPD = Math.min(rpd, 725); // cap just above max for bracket calc
+  const bracket   = Math.min(700, Math.floor((cappedRPD - 450) / 25) * 25 + 450);
+  const steps     = Math.floor((bracket - 450) / 25);
+  const base      = type === 'senior' ? 1902 : 3677;
+  return { bonus: base + steps * 300, bracket };
+}
+
+// ── Patch core bonus functions ────────────────────────────────────
+const _origBcMinRPD2 = bcMinRPD;
+bcMinRPD = function(){
+  if(bcIsAdvice()) return 450;
+  return _origBcMinRPD2.apply(this, arguments);
+};
+
+const _origBcOteRPD = bcOteRPD;
+bcOteRPD = function(){
+  if(bcIsAdvice()) return 525; // highlighted target bracket
+  return _origBcOteRPD.apply(this, arguments);
+};
+
+const _origBcBonusForRPD2 = bcBonusForRPD;
+bcBonusForRPD = function(rpd, type){
+  if(bcIsAdvice()) return adviceBonusForRPD(rpd, type);
+  return _origBcBonusForRPD2.apply(this, arguments);
+};
+
+// ── Quarterly UI activation / deactivation ────────────────────────
+function _fieldLbl(nearId, text){
+  const el = document.getElementById(nearId);
+  if(!el) return;
+  const f = el.closest('.bc-field');
+  if(!f) return;
+  const lbl = f.querySelector('.bc-field-label');
+  if(lbl) lbl.textContent = text;
+}
+function _fieldHint(nearId, selector, text){
+  const el = document.getElementById(nearId);
+  if(!el) return;
+  const f = el.closest('.bc-field');
+  if(!f) return;
+  const h = f.querySelector(selector || '.bc-field-hint');
+  if(h) h.textContent = text;
+}
+
+function _buildQSelOpts(){
+  const now = new Date();
+  const cy  = now.getFullYear();
+  let html  = '';
+  for(let y = cy - 1; y <= cy + 1; y++){
+    for(let q = 1; q <= 4; q++){
+      html += `<option value="Q${q}-${y}">${adviceQuarterLabel(`Q${q}-${y}`)}</option>`;
+    }
+  }
+  return html;
+}
+
+function bcAdviceActivateUI(){
+  // Hide monthly selector
+  const monthSel = document.getElementById('bcMonth');
+  if(monthSel) monthSel.style.display = 'none';
+
+  // Create / show quarter selector
+  let qSel = document.getElementById('bcAdviceQSel');
+  if(!qSel){
+    qSel = document.createElement('select');
+    qSel.id = 'bcAdviceQSel';
+    qSel.style.cssText = 'width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;font-size:15px;font-family:var(--fm);color:var(--text);outline:none;transition:border-color .15s;';
+    qSel.innerHTML = _buildQSelOpts();
+    qSel.onchange = function(){
+      _bcRevenueManual = false; _bcWDMManual = false; _bcYDManual = false;
+      bcAdviceAutoPopulate();
+    };
+    if(monthSel) monthSel.parentNode.insertBefore(qSel, monthSel);
+  } else {
+    qSel.style.display = '';
+  }
+  qSel.value = adviceCurrentQuarter();
+
+  // Update field labels
+  _fieldLbl('bcMonth',      'Quarter');
+  _fieldHint('bcMonth',     '.bc-field-hint', 'Revenue auto-pulls for this quarter (3 months combined)');
+  _fieldLbl('bcWDMDisplay', 'Working Days in Quarter');
+  _fieldHint('bcWDMDisplay','.bc-field-hint', 'Total weekdays minus bank holidays across the quarter');
+  _fieldLbl('bcYDDisplay',  'Your Days This Quarter');
+  _fieldHint('bcYDDisplay', '.bc-field-hint', 'Your working days across the quarter (after absences)');
+
+  // Update hero subtitle
+  const sub = document.querySelector('#page-bonuscalc .bc-hero-sub');
+  if(sub) sub.textContent = 'Advice Division · Quarterly Bonus · Calculated at end of Q1, Q2, Q3, Q4';
+
+  // Update revenue field label
+  const revLbl = document.querySelector('#bcRevenue')?.closest('.bc-field')?.querySelector('.bc-field-label');
+  if(revLbl) revLbl.innerHTML = 'Quarterly Revenue (£) <span id="bcAutoTag" style="display:none;font-size:9px;font-weight:700;background:rgba(45,206,137,.15);color:var(--green);padding:2px 7px;border-radius:10px;letter-spacing:.04em;margin-left:4px;">AUTO</span>';
+}
+
+function bcAdviceDeactivateUI(){
+  const monthSel = document.getElementById('bcMonth');
+  if(monthSel) monthSel.style.display = '';
+  const qSel = document.getElementById('bcAdviceQSel');
+  if(qSel) qSel.style.display = 'none';
+
+  _fieldLbl('bcMonth',      'Month');
+  _fieldHint('bcMonth',     '.bc-field-hint', 'Revenue auto-pulls for this month');
+  _fieldLbl('bcWDMDisplay', 'Working Days in Month');
+  _fieldHint('bcWDMDisplay','.bc-field-hint', 'Weekdays minus bank holidays');
+  _fieldLbl('bcYDDisplay',  'Your Working Days');
+  _fieldHint('bcYDDisplay', '.bc-field-hint', 'Working days minus your absences');
+
+  const sub = document.querySelector('#page-bonuscalc .bc-hero-sub');
+  if(sub) sub.textContent = 'Estimate your monthly earnings and bonus payout';
+}
+
+// ── Advice auto-populate (quarterly aggregation) ──────────────────
+function bcAdviceAutoPopulate(){
+  if(!bcIsAdvice()) return;
+  const qStr   = document.getElementById('bcAdviceQSel')?.value || adviceCurrentQuarter();
+  const myName = (typeof _currentUser !== 'undefined' && _currentUser?.name) ? _currentUser.name : '';
+
+  // Working days
+  const wdQ = adviceQuarterWD(qStr);
+  if(!_bcWDMManual){
+    const inp = document.getElementById('bcWorkingDaysMonth');
+    const txt = document.getElementById('bcWDMText');
+    if(inp) inp.value = wdQ;
+    if(txt) txt.textContent = wdQ + ' days';
+  }
+
+  // Your days
+  const ydQ = adviceQuarterYourDays(qStr);
+  if(!_bcYDManual){
+    const inp = document.getElementById('bcYourDays');
+    const txt = document.getElementById('bcYDText');
+    const hnt = document.getElementById('bcYDHint');
+    if(inp) inp.value = ydQ;
+    if(txt) txt.textContent = ydQ + ' days';
+    if(hnt) hnt.textContent = 'Your working days across ' + adviceQuarterLabel(qStr);
+  }
+
+  // Revenue
+  if(!_bcRevenueManual && myName){
+    const rev = Math.round(adviceQuarterRevenue(qStr, myName));
+    const inp = document.getElementById('bcRevenue');
+    const tag = document.getElementById('bcAutoTag');
+    const hnt = document.getElementById('bcRevenueHint');
+    if(rev > 0){
+      if(inp) inp.value = rev;
+      if(tag) tag.style.display = '';
+      if(hnt) hnt.textContent = `Auto-pulled from ${adviceQuarterLabel(qStr)} · edit to override`;
+    } else {
+      if(inp) inp.value = '';
+      if(tag) tag.style.display = 'none';
+      if(hnt) hnt.textContent = `No entries for ${adviceQuarterLabel(qStr)} · enter manually`;
+    }
+  }
+
+  bcRecalc();
+}
+
+// ── Advice-specific bcRecalc ──────────────────────────────────────
+function bcRecalcAdvice(){
+  const wdQ      = parseInt(document.getElementById('bcWorkingDaysMonth')?.value) || 66;
+  const yourDays = parseInt(document.getElementById('bcYourDays')?.value) || wdQ;
+  const revenue  = parseFloat(document.getElementById('bcRevenue')?.value) || 0;
+  const type     = (typeof _bcType !== 'undefined') ? _bcType : 'nonsenior';
+  const area     = document.getElementById('bcResultsArea');
+  const qStr     = document.getElementById('bcAdviceQSel')?.value || adviceCurrentQuarter();
+  const qLabel   = adviceQuarterLabel(qStr);
+  const brackets = BC_ADVICE_BRACKETS[type] || BC_ADVICE_BRACKETS.nonsenior;
+
+  if(!revenue || revenue <= 0){
+    area.innerHTML = `<div class="bc-empty"><div class="bc-empty-icon">📊</div><div class="bc-empty-text">Enter your quarterly revenue above to see your bonus estimate</div></div>`;
+    return;
+  }
+
+  const rpd = revenue / yourDays;
+
+  // ── Below minimum ──
+  if(rpd < 450){
+    const needed = Math.ceil((450 * yourDays) - revenue);
+    const pct    = Math.min(99, Math.round((rpd / 450) * 100));
+    area.innerHTML = `
+      <div style="background:linear-gradient(135deg,rgba(251,184,58,.1),rgba(251,184,58,.04));border:1.5px solid rgba(251,184,58,.3);border-radius:16px;padding:28px 32px;text-align:center;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(251,184,58,.12),transparent 70%);pointer-events:none;"></div>
+        <div style="font-size:40px;margin-bottom:12px;">💪</div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px;">Keep pushing!</div>
+        <div style="font-size:13px;color:var(--text2);font-family:var(--fm);margin-bottom:24px;">
+          Your ${qLabel} RPD of <strong>${bcFmt(rpd)}/day</strong> is below the £450/day quarterly bonus gateway
+        </div>
+        <div style="max-width:420px;margin:0 auto 24px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px 16px;">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Revenue needed for £450/day</div>
+            <div style="font-size:26px;font-weight:700;font-family:var(--fm);color:var(--blue);">${bcFmt(needed)}</div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--fm);margin-top:4px;">more this quarter</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:18px 16px;">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Current quarterly RPD</div>
+            <div style="font-size:26px;font-weight:700;font-family:var(--fm);color:var(--amber);">${bcFmt(rpd)}</div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--fm);margin-top:4px;">per day</div>
+          </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;height:10px;overflow:hidden;max-width:480px;margin:0 auto 8px;">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--amber),rgba(251,184,58,.5));border-radius:10px;transition:width .8s cubic-bezier(.4,0,.2,1);"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--fm);">${pct}% of the way to gateway · ${qLabel}</div>
+      </div>`;
+    return;
+  }
+
+  // ── Above minimum: full results ──
+  const { bonus: bonusTotal, bracket } = adviceBonusForRPD(rpd, type);
+  const nextBracketRPD = bracket + 25;
+  const neededForNext  = (nextBracketRPD * yourDays) - revenue;
+  const alreadyAtMax   = bracket >= 700;
+  const alreadyAtNext  = alreadyAtMax || neededForNext <= 0;
+  const nextBonusInfo  = adviceBonusForRPD(nextBracketRPD, type);
+  const projectedQRev  = rpd * wdQ;
+  const isAtTarget     = rpd >= 525; // highlighted target bracket
+
+  // Tier table — full pay plan
+  const tierRows = brackets.map(([r, b]) => ({ rpd:r, bonus:b, isYou: r === bracket }));
+
+  area.innerHTML = `
+    ${isAtTarget ? `
+    <div class="bc-hit-banner">
+      <div class="bc-hit-icon">🎯</div>
+      <div>
+        <div class="bc-hit-title">On target! You've reached the £525/day Advice target bracket.</div>
+        <div class="bc-hit-sub">Great work — keep this pace to secure your ${type==='senior'?'Senior':'Non-Senior'} ${bcFmt(bonusTotal)} quarterly bonus.</div>
+      </div>
+    </div>` : ''}
+
+    <div class="bc-results">
+      <div class="bc-res-card highlight">
+        <div class="bc-res-label">Quarterly RPD</div>
+        <div class="bc-res-val blue">${bcFmt(rpd)}</div>
+        <div class="bc-res-sub">Based on £${revenue.toLocaleString('en-GB')} over ${yourDays} day${yourDays===1?'':'s'} in ${qLabel}</div>
+        <div class="bc-progress-wrap">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:var(--fm);margin-bottom:5px;">
+            <span>£${bracket} bracket</span>
+            <span>${alreadyAtMax ? '🏆 Max' : '£' + nextBracketRPD + ' bracket'}</span>
+          </div>
+          <div class="bc-progress-track">
+            <div class="bc-progress-bar" style="width:${Math.min(100,((rpd-bracket)/25*100)).toFixed(1)}%"></div>
+          </div>
+        </div>
+      </div>
+      <div class="bc-res-card">
+        <div class="bc-res-label">Quarterly Bonus</div>
+        <div class="bc-res-val amber">${bcFmt(bonusTotal)}</div>
+        <div class="bc-res-sub">£${bracket}/day bracket · ${type==='senior'?'Senior':'Non-Senior'} scale · ${qLabel}</div>
+      </div>
+      <div class="bc-res-card highlight">
+        <div class="bc-res-label">Projected Q Revenue</div>
+        <div class="bc-res-val green">${bcFmt(projectedQRev)}</div>
+        <div class="bc-res-sub">If current RPD holds across all ${wdQ} days of ${qLabel}</div>
+      </div>
+      <div class="bc-res-card" style="border-color:${isAtTarget?'rgba(45,206,137,.3)':'rgba(251,184,58,.3)'}">
+        <div class="bc-res-label">Advice Gateway Status</div>
+        <div class="bc-res-val ${isAtTarget?'green':'amber'}">${isAtTarget?'🎯 Target Bracket':'✅ Bonus Active'}</div>
+        <div class="bc-res-sub">${isAtTarget
+          ? 'At or above the £525/day highlighted target bracket'
+          : 'Above the £450/day minimum — push to the £525/day target bracket'
+        }</div>
+      </div>
+    </div>
+
+    <div class="bc-next-bracket${alreadyAtNext?' bc-achieved':''}">
+      <div>
+        <div class="bc-next-label">${alreadyAtMax
+          ? '🏆 Maximum Bonus Reached'
+          : alreadyAtNext
+          ? '✅ Next Bracket Reached'
+          : `🎯 Next Bracket: £${nextBracketRPD.toLocaleString()} RPD`
+        }</div>
+        ${alreadyAtMax
+          ? `<div class="bc-next-val" style="color:var(--green)">${bcFmt(bonusTotal)} — top of the pay plan!</div>
+             <div class="bc-next-desc">You're at the maximum Advice quarterly bonus tier. Excellent!</div>`
+          : alreadyAtNext
+          ? `<div class="bc-next-val" style="color:var(--green)">Already there!</div>
+             <div class="bc-next-desc">You're in the £${nextBracketRPD} bracket or above</div>`
+          : `<div class="bc-next-val">${bcFmt(neededForNext)} more this quarter</div>
+             <div class="bc-next-desc">Earn ${bcFmt(neededForNext)} more Q revenue to reach £${nextBracketRPD}/day bracket and unlock ${bcFmt(nextBonusInfo.bonus)} bonus (${bcFmt(nextBonusInfo.bonus - bonusTotal)} uplift)</div>`
+        }
+      </div>
+      <div class="bc-next-icon">${alreadyAtMax ? '🏆' : alreadyAtNext ? '✅' : '📈'}</div>
+    </div>
+
+    <div class="bc-tier-section">
+      <div class="bc-tier-header">
+        <div>
+          <div class="bc-tier-title">📋 Advice Quarterly Pay Plan</div>
+          <div class="bc-tier-sub">${type==='senior'?'Senior':'Non-Senior'} scale · ${qLabel} · Gateway £450/day · Target £525/day</div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);font-family:var(--fm)">Full pay plan</div>
+      </div>
+      <table class="bc-tier-table">
+        <thead>
+          <tr>
+            <th class="bc-tier-th">Target RPD</th>
+            <th class="bc-tier-th">Quarterly Bonus</th>
+            <th class="bc-tier-th">Uplift vs Current</th>
+            <th class="bc-tier-th">Q Revenue Needed (${yourDays}d)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tierRows.map(row => {
+            const uplift  = row.bonus - bonusTotal;
+            const revDiff = (row.rpd * yourDays) - revenue;
+            const isMin   = row.rpd === 450;
+            const isTgt   = row.rpd === 525;
+            const isMaxBr = row.rpd === 700;
+            return `<tr class="bc-tier-tr${row.isYou?' current-tier':''}">
+              <td class="bc-tier-td">
+                £${row.rpd.toLocaleString()}
+                ${row.isYou ? '<span class="bc-you-badge">YOU</span>' : ''}
+                ${isTgt && !row.isYou ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,.15);color:var(--green);padding:1px 6px;border-radius:6px;margin-left:5px;letter-spacing:.04em">TARGET</span>' : ''}
+                ${isMin && !row.isYou ? '<span style="font-size:9px;font-weight:700;background:rgba(94,156,245,.15);color:var(--blue);padding:1px 6px;border-radius:6px;margin-left:5px;letter-spacing:.04em">MIN</span>' : ''}
+                ${isTgt && row.isYou ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,.15);color:var(--green);padding:1px 6px;border-radius:6px;margin-left:5px;letter-spacing:.04em">YOU + TARGET</span>' : ''}
+              </td>
+              <td class="bc-tier-td" style="color:var(--amber);font-weight:${row.isYou?'700':'400'}">${bcFmt(row.bonus)}</td>
+              <td class="bc-tier-td" style="color:${uplift>0?'var(--green)':uplift<0?'var(--red)':'var(--text3)'}">
+                ${uplift>0?'+':''}${uplift!==0?bcFmt(uplift):'—'}
+              </td>
+              <td class="bc-tier-td" style="color:${revDiff>0?'var(--text2)':'var(--green)'}">
+                ${revDiff>0?'+'+bcFmt(revDiff)+' needed':revDiff<0?bcFmt(Math.abs(revDiff))+' surplus':'—'}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── Patch bcInit ──────────────────────────────────────────────────
+if(typeof bcInit === 'function'){
+  const _origBcInit2 = bcInit;
+  bcInit = function(){
+    _origBcInit2.apply(this, arguments);
+    if(bcIsAdvice()){
+      bcAdviceActivateUI();
+      bcAdviceAutoPopulate();
+    } else {
+      bcAdviceDeactivateUI();
+    }
+  };
+}
+
+// ── Patch bcAutoPopulate ──────────────────────────────────────────
+if(typeof bcAutoPopulate === 'function'){
+  const _origBcAutoPop2 = bcAutoPopulate;
+  bcAutoPopulate = function(){
+    if(bcIsAdvice()){ bcAdviceAutoPopulate(); return; }
+    return _origBcAutoPop2.apply(this, arguments);
+  };
+}
+
+// ── Patch bcRecalc ────────────────────────────────────────────────
+if(typeof bcRecalc === 'function'){
+  const _origBcRecalc2 = bcRecalc;
+  bcRecalc = function(){
+    if(bcIsAdvice()){ bcRecalcAdvice(); return; }
+    return _origBcRecalc2.apply(this, arguments);
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADVICE: LIVE QUARTERLY BONUS WIDGET (Consultant Daily Tracker)
+// ═══════════════════════════════════════════════════════════════════
+if(typeof buildLiveBonusCard === 'function'){
+  const _origBuildLiveBonusCard2 = buildLiveBonusCard;
+  buildLiveBonusCard = function(mk, myName){
+    if(!bcIsAdvice()) return _origBuildLiveBonusCard2.apply(this, arguments);
+
+    try{
+      if(!mk || !myName) return '';
+
+      // Derive current quarter from the viewed month
+      const [y, m]   = mk.split('-').map(Number);
+      const qNum     = Math.ceil(m / 3);
+      const qStr     = `Q${qNum}-${y}`;
+      const months   = adviceQuarterMonths(qStr);
+      const qLabel   = adviceQuarterLabel(qStr);
+      const personType = (typeof _bcType !== 'undefined' && _bcType === 'senior') ? 'senior' : 'nonsenior';
+
+      // Aggregate Q revenue for this person
+      let revQ = 0;
+      for(const qmk of months){
+        const entries = typeof getEntries === 'function' ? getEntries(qmk) : [];
+        revQ += entries.filter(e => e.name === myName).reduce((s,e) => s + (e.revenue||0), 0);
+      }
+
+      const totalQWD   = adviceQuarterWD(qStr);
+      const elapsedQWD = adviceQuarterElapsedWD(qStr);
+      const daysLeft   = Math.max(0, totalQWD - elapsedQWD);
+
+      if(!elapsedQWD){
+        return `<div class="bonus-live-card empty">
+          <div class="blc-empty-icon">💰</div>
+          <div class="blc-empty-title">Quarterly Bonus Tracker</div>
+          <div class="blc-empty-sub">${qLabel} · Quarter hasn't started yet</div>
+        </div>`;
+      }
+      if(!revQ){
+        return `<div class="bonus-live-card empty">
+          <div class="blc-empty-icon">💰</div>
+          <div class="blc-empty-title">Quarterly Bonus Tracker</div>
+          <div class="blc-empty-sub">${qLabel} · Log revenue to track your quarterly bonus</div>
+        </div>`;
+      }
+
+      const paceRPD  = revQ / elapsedQWD;
+      const belowMin = paceRPD < 450;
+      const { bonus: projectedBonus, bracket } = adviceBonusForRPD(paceRPD, personType);
+
+      // Yesterday delta — did today's revenue move the bracket?
+      const today      = typeof _localDateStr === 'function' ? _localDateStr(new Date()) : new Date().toISOString().slice(0,10);
+      const allEntries = months.flatMap(qmk => (typeof getEntries === 'function' ? getEntries(qmk) : []).filter(e => e.name === myName));
+      const todayRev   = allEntries.filter(e => e.date === today).reduce((s,e) => s+(e.revenue||0), 0);
+      let todayDelta   = '';
+      if(todayRev > 0 && elapsedQWD >= 2){
+        const revBefore    = revQ - todayRev;
+        const wdBefore     = elapsedQWD - 1;
+        const rpd_before   = revBefore / wdBefore;
+        const bonusBefore  = adviceBonusForRPD(rpd_before, personType).bonus;
+        const delta        = projectedBonus - bonusBefore;
+        if(delta > 0)       todayDelta = `<div class="blc-delta-pos">↑ Today's sales lifted your quarterly bonus projection by <strong>£${Math.round(delta).toLocaleString()}</strong></div>`;
+        else if(delta < 0)  todayDelta = `<div class="blc-delta-neg">↓ Today's pace dipped your Q projection by £${Math.round(Math.abs(delta)).toLocaleString()}</div>`;
+      }
+
+      // Next bracket
+      const nextBracketRPD     = Math.min(700, bracket + 25);
+      const nextBonusInfo      = adviceBonusForRPD(nextBracketRPD, personType);
+      const bonusJump          = nextBonusInfo.bonus - projectedBonus;
+      const projectedTotalRev  = paceRPD * totalQWD;
+      const revToNextBracket   = Math.max(0, nextBracketRPD * totalQWD - projectedTotalRev);
+      const revPerDayToNext    = daysLeft > 0 ? revToNextBracket / daysLeft : 0;
+
+      const onTarget  = paceRPD >= 525;
+      const projColor = belowMin ? 'var(--text3)' : onTarget ? 'var(--green)' : paceRPD >= 450 ? 'var(--amber)' : 'var(--text3)';
+
+      // Quarterly progress %
+      const qPct = Math.round((elapsedQWD / totalQWD) * 100);
+
+      return `
+        <div class="bonus-live-card">
+          <div class="blc-head">
+            <span class="blc-icon">💰</span>
+            <span class="blc-title">Quarterly Bonus Tracker</span>
+            <span class="blc-pill" style="background:${onTarget?'var(--green-bg)':belowMin?'var(--red-bg)':'var(--amber-bg)'};color:${onTarget?'var(--green)':belowMin?'var(--red)':'var(--amber)'};border-color:${onTarget?'var(--green)':belowMin?'var(--red)':'var(--amber)'}55;">
+              ${onTarget ? '✓ ON TARGET' : belowMin ? 'BELOW MIN' : '⬆ BUILDING'}
+            </span>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div style="flex:1;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:var(--fm);margin-bottom:5px;">
+                <span style="font-weight:700;letter-spacing:.06em;text-transform:uppercase;">${qLabel}</span>
+                <span>${elapsedQWD} of ${totalQWD} days (${qPct}%)</span>
+              </div>
+              <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
+                <div style="height:100%;width:${qPct}%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:4px;transition:width .5s;"></div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);font-family:var(--fm);white-space:nowrap;">${daysLeft} days left</div>
+          </div>
+
+          <div class="blc-projected">
+            <div class="blc-proj-lbl">Projected Quarterly Bonus</div>
+            <div class="blc-proj-val" style="color:${projColor}">£${Math.round(projectedBonus).toLocaleString()}</div>
+            <div class="blc-proj-sub">Q avg RPD £${Math.round(paceRPD).toLocaleString()}/day · ${personType==='senior'?'Senior':'Non-Senior'} · £${bracket} bracket</div>
+          </div>
+
+          ${todayDelta}
+
+          <div class="blc-tiers">
+            <div class="blc-tier">
+              <div class="blc-tier-lbl">Q Revenue to Date</div>
+              <div class="blc-tier-val">£${Math.round(revQ).toLocaleString()}</div>
+              <div class="blc-tier-sub">${elapsedQWD} days in</div>
+            </div>
+            <div class="blc-tier-arrow">→</div>
+            <div class="blc-tier tier-projected">
+              <div class="blc-tier-lbl">Avg RPD</div>
+              <div class="blc-tier-val" style="color:${projColor}">£${Math.round(paceRPD).toLocaleString()}</div>
+              <div class="blc-tier-sub">per working day</div>
+            </div>
+            <div class="blc-tier-arrow">→</div>
+            <div class="blc-tier ${onTarget?'tier-target-hit':''}">
+              <div class="blc-tier-lbl">Projected Bonus</div>
+              <div class="blc-tier-val" style="color:${projColor}">£${Math.round(projectedBonus).toLocaleString()}</div>
+              <div class="blc-tier-sub">${belowMin ? '⚠ Below £450 min' : '£'+bracket+'/day bracket'}</div>
+            </div>
+          </div>
+
+          ${bonusJump > 0 && revToNextBracket > 0 && nextBracketRPD <= 700 ? `
+          <div class="blc-next">
+            <div class="blc-next-icon">🎯</div>
+            <div class="blc-next-content">
+              <div class="blc-next-title">Next Bracket: £${nextBracketRPD.toLocaleString()} RPD → +£${bonusJump.toLocaleString()} bonus</div>
+              <div class="blc-next-sub">Add <strong style="color:var(--accent)">£${Math.round(revToNextBracket).toLocaleString()}</strong> more Q revenue ${daysLeft>0?`(<strong>£${Math.round(revPerDayToNext).toLocaleString()}/day</strong> over ${daysLeft} day${daysLeft===1?'':'s'} left)`:''} to unlock <strong style="color:var(--green)">£${Math.round(nextBonusInfo.bonus).toLocaleString()}</strong> quarterly bonus</div>
+            </div>
+          </div>` : ''}
+
+          ${belowMin ? `
+          <div class="blc-warn">
+            <span>⚠️</span>
+            <span>Q avg RPD (£${Math.round(paceRPD).toLocaleString()}/day) is below the £450/day Advice minimum. No bonus until quarterly average reaches £450/day.</span>
+          </div>` : ''}
+
+          <div class="blc-foot">Advice quarterly bonus — your bonus is calculated once at the end of ${qLabel} based on average RPD across all three months. Toggle Senior/Non-Senior on the <a href="javascript:showPage('bonuscalc')" style="color:var(--accent)">Bonus Calculator</a>.</div>
+        </div>`;
+    } catch(err){
+      console.warn('advice quarterly bonus widget error', err);
+      return '';
+    }
+  };
+}
+
+})(); // end advice quarterly bonus module
+</script>
+
 </body>
 </html>
 
