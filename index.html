@@ -20606,8 +20606,11 @@ function injectForecast(){
     if(!host){
       host = document.createElement('div');
       host.id = 'forecastHost';
-      host.style.marginBottom = '16px';
-      teamRow.parentNode.insertBefore(host, teamRow.nextSibling);
+      host.style.marginTop = '16px';
+      // Insert after cardsGrid (consultant cards), not after teamSummaryRow
+      const cardsGrid = document.getElementById('cardsGrid');
+      const anchor = cardsGrid || teamRow;
+      anchor.parentNode.insertBefore(host, anchor.nextSibling);
     }
     host.innerHTML = buildForecastCard();
   } catch(err){ console.warn('inject forecast', err); }
