@@ -2170,6 +2170,14 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
       <button class="login-btn" style="background:var(--surface2);color:var(--text2);margin-top:6px;" onclick="backToUserSelect()">← Back</button>
       <div class="login-err" id="loginErr3"></div>
     </div>
+
+    <!-- Emergency Restore — always accessible from login screen -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:center;">
+      <button onclick="loginEmergencyRestore()" style="background:none;border:none;color:var(--text3);font-size:11px;font-family:var(--fm);cursor:pointer;opacity:.7;transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">
+        🆘 Emergency restore from backup file
+      </button>
+      <input type="file" id="loginRestoreFile" accept=".json" style="display:none" onchange="loginDoRestore(this)">
+    </div>
   </div>
 </div>
 
@@ -23340,6 +23348,158 @@ window.bkpRenderList     = bkpRenderList;
 window.bkpSnapshot       = bkpSnapshot;
 
 })(); // end backup module
+
+// ═══════════════════════════════════════════════════════════════════
+// EMERGENCY RESTORE — works from the login screen before any user
+// is authenticated. Reads a backup JSON, writes everything back to
+// Firebase, then reloads the page so the normal login flow runs.
+// ═══════════════════════════════════════════════════════════════════
+function loginEmergencyRestore(){
+  document.getElementById('loginRestoreFile').click();
+}
+
+function loginDoRestore(input){
+  const file = input?.files?.[0];
+  if(!file) return;
+  input.value = '';
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try{
+      const parsed = JSON.parse(evt.target.result);
+      const data   = parsed.data || parsed;
+
+      // Validate it looks like a real backup
+      const isFullBackup  = data._fullBackup && data.divisions;
+      const isSingleDiv   = data.people || data.months;
+      if(!isFullBackup && !isSingleDiv){
+        alert('This does not look like a valid BAU Dashboard backup file.');
+        return;
+      }
+
+      if(!confirm('Restore this backup?
+
+This will overwrite all current data in Firebase and reload the page.')){
+        return;
+      }
+
+      // We need Firebase — initialise it if not yet connected
+      const _doWrite = () => {
+        if(!_db){ alert('Cannot connect to Firebase. Check your internet connection and try again.'); return; }
+
+        const writes = [];
+
+        if(isFullBackup){
+          // Full backup: write all divisions + shared
+          Object.keys(data.divisions||{}).forEach(k => {
+            const div = DIVISIONS[k];
+            if(!div) return;
+            const { activeMonth:_am, ...toWrite } = (data.divisions[k]||{});
+            writes.push(_db.ref(div.dbKey).set(toWrite));
+          });
+          if(data.users  && Object.keys(data.users).length)
+            writes.push(_db.ref('perfDash2_core/cavendishUsers').set(data.users));
+          if(data.tickets && Object.keys(data.tickets).length)
+            writes.push(_db.ref('perfDash2_core/tickets').set(data.tickets));
+          if(data.kudos  && Object.keys(data.kudos).length)
+            writes.push(_db.ref('perfDash2_core/kudos').set(data.kudos));
+        } else {
+          // Single-division backup: write to core (best guess)
+          const { activeMonth:_am, ...toWrite } = data;
+          writes.push(_db.ref(DIVISIONS.core.dbKey).set(toWrite));
+        }
+
+        Promise.all(writes)
+          .then(() => {
+            alert('✅ Restore complete! The page will now reload — log in normally.');
+            location.reload();
+          })
+          .catch(err => alert('Restore failed: ' + (err?.message||err) + '
+
+Check your internet connection.'));
+      };
+
+      // Firebase may not be initialised yet on the login screen
+      if(typeof _db !== 'undefined' && _db){
+        _doWrite();
+      } else {
+        // Try to init Firebase first
+        alert('Connecting to Firebase… please wait a moment and try again if this fails.');
+        setTimeout(()=>{
+          if(typeof _db !== 'undefined' && _db) _doWrite();
+          else alert('Could not connect to Firebase. Check your internet connection and try again.');
+        }, 2500);
+      }
+
+    } catch(err){
+      alert('Failed to read backup file: ' + (err?.message||err));
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DAILY AUTO-DOWNLOAD — silently exports a full backup JSON once
+// per calendar day to the user's Downloads folder, so there is
+// always an off-device copy without needing to remember to click Export.
+// Only runs for master / manager roles to avoid prompting every user.
+// ═══════════════════════════════════════════════════════════════════
+(function(){
+  const AUTO_DL_KEY = 'bau_lastAutoDownload';
+
+  function _shouldAutoDownload(){
+    const role = typeof _currentUser !== 'undefined' ? (_currentUser?.role||'') : '';
+    if(role !== 'master' && role !== 'manager') return false;
+    const today = new Date().toISOString().slice(0,10);
+    try{ return localStorage.getItem(AUTO_DL_KEY) !== today; } catch(e){ return false; }
+  }
+
+  function _markAutoDownloadDone(){
+    const today = new Date().toISOString().slice(0,10);
+    try{ localStorage.setItem(AUTO_DL_KEY, today); } catch(e){}
+  }
+
+  function _triggerAutoDownload(){
+    if(!_shouldAutoDownload()) return;
+    if(typeof _db === 'undefined' || !_db) return;
+
+    const ts    = new Date().toISOString().slice(0,10);
+    const fname = `BAU_AutoBackup_${ts}.json`;
+    const divKeys = Object.keys(DIVISIONS);
+
+    Promise.all([
+      ...divKeys.map(k => _db.ref(DIVISIONS[k].dbKey).once('value').then(s=>({key:k,data:s.val()||{}})).catch(()=>({key:k,data:{}}))),
+      _db.ref('perfDash2_core/cavendishUsers').once('value').then(s=>s.val()||{}).catch(()=>({})),
+      _db.ref('perfDash2_core/tickets').once('value').then(s=>s.val()||{}).catch(()=>({})),
+      _db.ref('perfDash2_core/kudos').once('value').then(s=>s.val()||{}).catch(()=>({}))
+    ]).then(results => {
+      const divData = {};
+      divKeys.forEach((k,i) => { divData[k] = results[i].data; });
+      const blob = new Blob([JSON.stringify({
+        _meta:{ exported:new Date().toISOString(), version:2, fullBackup:true, autoDownload:true },
+        data:{ _fullBackup:true, divisions:divData, users:results[divKeys.length], tickets:results[divKeys.length+1], kudos:results[divKeys.length+2] }
+      }, null, 2)], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a   = Object.assign(document.createElement('a'), { href:url, download:fname });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      _markAutoDownloadDone();
+    }).catch(()=>{}); // silent fail — manual export still available
+  }
+
+  // Hook into setSyncStatus: trigger auto-download once Firebase is live
+  // and role is known (i.e. after login completes)
+  const _origSSS_adl = typeof setSyncStatus === 'function' ? setSyncStatus : null;
+  if(_origSSS_adl){
+    setSyncStatus = function(state){
+      _origSSS_adl.apply(this, arguments);
+      if(state === 'live'){
+        // Delay slightly so _currentUser is set by the time this fires
+        setTimeout(_triggerAutoDownload, 3000);
+      }
+    };
+  }
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // GLOBAL ERROR BOUNDARY
