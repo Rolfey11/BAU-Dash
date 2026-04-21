@@ -2169,15 +2169,16 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
       <button class="login-btn" onclick="attemptPinLogin()">Sign In ✓</button>
       <button class="login-btn" style="background:var(--surface2);color:var(--text2);margin-top:6px;" onclick="backToUserSelect()">← Back</button>
       <div class="login-err" id="loginErr3"></div>
+      <!-- Emergency restore — only shown when admin login mode is active -->
+      <div id="adminRestoreLink" style="display:none;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);text-align:center;">
+        <button onclick="loginEmergencyRestore()" style="background:none;border:none;color:var(--text3);font-size:11px;font-family:var(--fm);cursor:pointer;padding:4px 8px;">
+          🆘 Emergency restore from backup file
+        </button>
+      </div>
     </div>
 
-    <!-- Emergency Restore — always accessible from login screen -->
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:center;">
-      <button onclick="loginEmergencyRestore()" style="background:none;border:none;color:var(--text3);font-size:11px;font-family:var(--fm);cursor:pointer;opacity:.7;transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">
-        🆘 Emergency restore from backup file
-      </button>
-      <input type="file" id="loginRestoreFile" accept=".json" style="display:none" onchange="loginDoRestore(this)">
-    </div>
+    <!-- Emergency restore file input — triggered only after admin login -->
+    <input type="file" id="loginRestoreFile" accept=".json" style="display:none" onchange="loginDoRestore(this)">
   </div>
 </div>
 
@@ -4703,6 +4704,8 @@ function showAdminLogin(){
   document.getElementById('loginPinLabel').textContent = 'Admin Login — Enter PIN';
   document.getElementById('loginStep2').style.display = 'none';
   document.getElementById('loginStep3').style.display = '';
+  const arl = document.getElementById('adminRestoreLink');
+  if(arl) arl.style.display = '';
   document.getElementById('loginPin').value = '';
   document.getElementById('loginPin').focus();
 }
@@ -23377,9 +23380,7 @@ function loginDoRestore(input){
         return;
       }
 
-      if(!confirm('Restore this backup?
-
-This will overwrite all current data in Firebase and reload the page.')){
+      if(!confirm('Restore this backup?\n\nThis will overwrite all current data in Firebase and reload the page.')){
         return;
       }
 
@@ -23499,7 +23500,10 @@ Check your internet connection.'));
       }
     };
   }
-})();
+}
+window.loginEmergencyRestore = loginEmergencyRestore;
+window.loginDoRestore       = loginDoRestore;
+)();
 
 // ═══════════════════════════════════════════════════════════════════
 // GLOBAL ERROR BOUNDARY
