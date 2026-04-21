@@ -20847,12 +20847,6 @@ function buildLiveBonusCard(mk, myName){
         ${todayDelta}
 
         <div class="blc-tiers">
-          <div class="blc-tier">
-            <div class="blc-tier-lbl">If You Stop Selling</div>
-            <div class="blc-tier-val">£${Math.round(stopBonus).toLocaleString()}</div>
-            <div class="blc-tier-sub">pro-rata for ${wdElapsed}/${effectiveDaysT} days</div>
-          </div>
-          <div class="blc-tier-arrow">→</div>
           <div class="blc-tier tier-projected">
             <div class="blc-tier-lbl">On Current Pace</div>
             <div class="blc-tier-val" style="color:${projColor}">£${Math.round(paceBonus).toLocaleString()}</div>
@@ -23167,6 +23161,17 @@ if(typeof selectDivision === 'function'){
     return _origSelectDivBkp.apply(this, arguments);
   };
 }
+
+// ── Export all public functions to global scope ──────────────────
+// They are defined inside this IIFE for organisation but must be
+// accessible from onclick= attributes in the HTML.
+window.bkpSnapshotNow    = bkpSnapshotNow;
+window.bkpExportNow      = bkpExportNow;
+window.bkpExportSnapshot = bkpExportSnapshot;
+window.bkpRestoreSnapshot= bkpRestoreSnapshot;
+window.bkpImportFile     = bkpImportFile;
+window.bkpRenderList     = bkpRenderList;
+window.bkpSnapshot       = bkpSnapshot;
 
 })(); // end backup module
 
