@@ -3976,7 +3976,7 @@ function bcFmtDec(n){ return '£' + n.toLocaleString('en-GB',{minimumFractionDig
 
 function bcRecalc(){
   const wdm     = parseInt(document.getElementById('bcWorkingDaysMonth').value) || 22;
-  const yourDays= parseInt(document.getElementById('bcYourDays').value) || wdm;
+  const yourDays= Math.max(1, parseInt(document.getElementById('bcYourDays').value) || wdm);
   const revenue = parseFloat(document.getElementById('bcRevenue').value) || 0;
   const type    = _bcType;
   const area    = document.getElementById('bcResultsArea');
@@ -4791,7 +4791,7 @@ function setSyncStatus(state){
 
 // ─── Save (debounced 400ms) ────────────────────────────────────────
 let _saveTimer = null;
-let _ignoreNextSnapshot = false;
+let _ignoreNextSnapshot = 0; // counter: >0 means ignore; handles concurrent saves
 let _histPage = 0;
 const HIST_PAGE_SIZE = 50;
 
@@ -4805,15 +4805,15 @@ function saveApp(){
   _saveTimer = setTimeout(_doSaveApp, 400);
 }
 function _doSaveApp(){
-  _ignoreNextSnapshot = true;
-  if(!_dbRef){ setSyncStatus('error'); return; }
+  _ignoreNextSnapshot++;
+  if(!_dbRef){ setSyncStatus('error'); _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1); return; }
   // Strip activeMonth before writing to Firebase — each user's month view is
   // stored locally (localStorage) so it must never overwrite other users.
   const { activeMonth: _am, ...appToSave } = APP;
   _dbRef.set(appToSave)
-    .then(()=>{ setSyncStatus('live'); _saveRetryCount=0; })
+    .then(()=>{ setSyncStatus('live'); _saveRetryCount=0; _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1); })
     .catch(e=>{
-      _ignoreNextSnapshot = false;
+      _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1);
       console.error('Save failed',e);
       _saveRetryCount++;
       if(_saveRetryCount < 3){
@@ -4917,13 +4917,21 @@ function allMonthKeysWithAbsences(){
 // ── entry helpers (source of truth) ───────────────────────────────
 // An entry = {date:'YYYY-MM-DD', name:String, revenue:Number, nm:Number}
 function getEntries(monthKey){
-  return (APP.months[monthKey]||{entries:[]}).entries;
+  const raw = (APP.months[monthKey]||{entries:[]}).entries;
+  // Firebase sometimes returns sparse arrays as objects; normalise to array
+  if(!raw) return [];
+  if(Array.isArray(raw)) return raw;
+  return Object.values(raw).filter(Boolean);
 }
 function setEntries(monthKey, entries){
   if(!APP.months[monthKey]) APP.months[monthKey]={entries:[]};
+  // Normalise: accept array or Firebase object-keyed form
+  const safeEntries = !entries ? []
+    : Array.isArray(entries) ? entries
+    : Object.values(entries).filter(Boolean);
   // Detect new entries for activity log
   const oldKeys = new Set((APP.months[monthKey].entries||[]).map(e=>e.date+'_'+e.name));
-  APP.months[monthKey].entries = entries;
+  APP.months[monthKey].entries = safeEntries;
   saveApp();
   // Fire activity for any genuinely new entries with revenue
   if(typeof _onEntrySaved==='function'){
@@ -4940,6 +4948,7 @@ function nmRate(){ return (APP.nmRate != null ? APP.nmRate : 1.75); }
 // Global p.riskPerDay / p.daysT are legacy fields, not used for display.
 // If no override exists for this month, returns 0/0 (unset).
 function getPersonForMonth(p, mk){
+  if(!p) return {riskPerDay:0, daysT:0, nmPerDay:0};
   if(!mk) return {...p, nmPerDay: nmRateFor(p.name||'')};
   const ovr = (APP.monthOverrides && APP.monthOverrides[mk] && APP.monthOverrides[mk][p.name]) || {};
   return {
@@ -5067,6 +5076,7 @@ function calWorkDaysTeam(mk){ return calWorkDays(mk, null); }
   nmPct        = nmMTD  / nmTarget × 100
 */
 function calcStats(monthKey){
+  if(!APP || !APP.people || !APP.people.length) return [];
   const entries = getEntries(monthKey);
 
   return APP.people.map(p=>{
@@ -6314,6 +6324,8 @@ function calcTeamCOP(mk, memberNames, teamKey){
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function renderDashboard(){
+  try{ _renderDashboardSafe(); }catch(err){ console.error("renderDashboard crash:",err); const c=document.getElementById("dashContent"); if(c) c.innerHTML='<div style="padding:32px;text-align:center;color:var(--red);font-family:var(--fm)">Dashboard failed to render. Please refresh.<br><small>'+String(err?.message||err).slice(0,120)+'</small></div>'; } }
+function _renderDashboardSafe(){
   _syncPeopleFromUsers(); // ensure division consultants are always current
   const mk     = APP.activeMonth;
   const stats  = calcStats(mk);
@@ -6709,9 +6721,16 @@ function saveAllEntries(){
   // If only the base fields are changed (no addRev), we update the total but
   // don't add a new deal (it's an edit, not a new deal).
   const prevEntries = getEntries(mk);
+  const activePeople = APP.people.filter(p=>personTargetForMonth(p,mk)>0);
+  // Safety: never wipe the day's entries if the people list is empty
+  // (e.g. data hasn't loaded yet or wrong month selected)
+  if(!activePeople.length){
+    showToast('No active consultants found for this month — save cancelled','err');
+    return;
+  }
   let entries = prevEntries.filter(e=>e.date!==date);
   const newForDate = [];
-  APP.people.filter(p=>personTargetForMonth(p,mk)>0).forEach(p=>{
+  activePeople.forEach(p=>{
     const baseRev = parseFloat(document.getElementById('rev_'+p.name)?.value)||0;
     const addRev  = parseFloat(document.getElementById('addrev_'+p.name)?.value)||0;
     const baseNm  = parseInt(document.getElementById('nm_'+p.name)?.value)||0;
@@ -6936,7 +6955,9 @@ function _clearPendingForDate(date, name){
 }
 
 function deleteEntry(mk, date, name){
-  if(!confirm(`Remove entry for ${name} on ${date}?`)) return;
+  const _delRole = _currentUser?.role || 'consultant';
+  if(_delRole === 'consultant'){ showToast('Only managers can delete entries','err'); return; }
+  if(!confirm(`Remove entry for ${name} on ${date}?\n\nThis cannot be undone.`)) return;
   setEntries(mk, getEntries(mk).filter(e=>!(e.date===date&&e.name===name)));
   _clearPendingForDate(date, name);
   renderHistory();
@@ -7527,7 +7548,12 @@ function createNewMonth(){
 }
 
 function clearAllData(){
-  if(!confirm('Delete ALL data and consultants? This cannot be undone.')) return;
+  const _cdRole = _currentUser?.role || 'consultant';
+  if(_cdRole !== 'master'){ showToast('Only Master users can clear all data','err'); return; }
+  if(!confirm('⚠️ WARNING: Delete ALL data and consultants?\n\nThis will permanently erase every entry, target, and consultant. This CANNOT be undone.')) return;
+  if(!confirm('Are you absolutely sure? Type OK in the next box to confirm.')) return;
+  const typed = window.prompt('Type DELETE to confirm permanent data wipe:');
+  if(typed?.trim().toUpperCase() !== 'DELETE'){ showToast('Cancelled — data not cleared','err'); return; }
   APP={people:[],months:{},activeMonth:todayKey(),teams:{},bizTargets:{},holidays:{},sickness:{},monthOverrides:{},manualElapsed:null};
   APP.months[APP.activeMonth]={entries:[]};
   _writeLocalViewMonth(APP.activeMonth);
@@ -7688,6 +7714,7 @@ function setMcsSort(col){
 }
 
 function renderMonthlySummary(){
+  try {
   populateAllSelects();
   const mk     = document.getElementById('mcsMonth').value || APP.activeMonth;
   const stats  = calcStats(mk).filter(s=>s.target>0);
@@ -8155,7 +8182,7 @@ function renderDailySend(){
       return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     });
     // On-track line: linear % for each elapsed day
-    const onTrackLine = elapsedDates.map((_,i) => parseFloat(((i+1)/totalWD*100).toFixed(1)));
+    const onTrackLine = totalWD > 0 ? elapsedDates.map((_,i) => parseFloat(((i+1)/totalWD*100).toFixed(1))) : elapsedDates.map(()=>0);
 
     function divChartData(key, useNm){
       const data    = byKey[key] || {};
@@ -10385,7 +10412,7 @@ function handleReview(id, action){
           filtered.push(newEntry);
           if(!APP.months[mk]) APP.months[mk] = {entries:[]};
           APP.months[mk].entries = filtered;
-          _ignoreNextSnapshot = true;
+          _ignoreNextSnapshot++;
           return filtered;
         }, (txErr, committed, txSnap)=>{
           if(txErr||!committed){ showToast('Entry saved to pending but failed to write to figures. Please contact admin.','err'); return; }
@@ -10436,6 +10463,8 @@ function _populateCdConsultantSel(){
 }
 
 function renderConsultantDaily(){
+  try{ _renderCDSafe(); }catch(err){ console.error("renderConsultantDaily crash:",err); } }
+function _renderCDSafe(){
   populateAllSelects();
   _populateCdConsultantSel();
   const mk       = document.getElementById('cdMonth')?.value || APP.activeMonth;
@@ -10924,7 +10953,7 @@ function savePlp(){
     // Update local APP
     if(!APP.months[mk]) APP.months[mk] = {entries:[]};
     APP.months[mk].entries = newEntries;
-    _ignoreNextSnapshot = true;
+    _ignoreNextSnapshot++;
 
     return _db.ref(entriesPath).set(newEntries);
 
@@ -10961,15 +10990,15 @@ function saveManagerDirectEntry(){
   // Step 1: read current entries fresh from Firebase
   _db.ref(entriesPath).once('value').then(snap=>{
     const raw         = snap.val();
-    console.log('[DEAL SAVE] Firebase raw entries:', JSON.stringify(raw));
+    // [DEAL SAVE] debug log removed
 
     const existingArr = _normArr(raw);
     const filtered    = existingArr.filter(en=>!(en.date===date&&en.name===name));
     const existing    = existingArr.find(en=>en.date===date&&en.name===name);
     const existingDeals = _normArr(existing?.deals);
 
-    console.log('[DEAL SAVE] Existing entry:', JSON.stringify(existing));
-    console.log('[DEAL SAVE] Existing deals count:', existingDeals.length);
+    // [DEAL SAVE] debug log removed
+    // [DEAL SAVE] debug log removed
 
     const newEntry = {
       date, name,
@@ -10979,13 +11008,13 @@ function saveManagerDirectEntry(){
     };
     filtered.push(newEntry);
 
-    console.log('[DEAL SAVE] New entry to write:', JSON.stringify(newEntry));
-    console.log('[DEAL SAVE] Total deals in new entry:', newEntry.deals.length);
+    // [DEAL SAVE] debug log removed
+    // [DEAL SAVE] debug log removed
 
     // Update local APP immediately
     if(!APP.months[mk]) APP.months[mk] = {entries:[]};
     APP.months[mk].entries = filtered;
-    _ignoreNextSnapshot = true;
+    _ignoreNextSnapshot++;
 
     // Step 2: write back to Firebase
     return _db.ref(entriesPath).set(filtered);
@@ -11053,7 +11082,7 @@ function _divStats(data, mk){
     const mine   = entries.filter(e=>e.name===p.name);
     const revMTD = mine.reduce((s,e)=>s+(e.revenue||0),0);
     const nmMTD  = mine.reduce((s,e)=>s+(e.nm||0),0);
-    const revPct = target>0?Math.round(revMTD/target*100):0;
+    const revPct = (target>0 && isFinite(revMTD/target)) ? Math.round(revMTD/target*100) : 0;
 
     const hols = ((data.holidays||{})[mk]||{})[p.name]||[];
     const sick = ((data.sickness||{})[mk]||{})[p.name]||[];
@@ -11682,7 +11711,9 @@ function peopleWorkingOnDate(mk, ds){
 
 // Get all working dates in a month (Mon-Fri, excluding bank holidays)
 function workingDatesInMonth(mk){
+  if(!mk || !/^\d{4}-\d{2}$/.test(mk)) return [];
   const [y,m] = mk.split('-').map(Number);
+  if(!y || !m || m < 1 || m > 12) return [];
   const days=[];
   const cursor = new Date(y,m-1,1);
   while(cursor.getMonth()===m-1){
@@ -12903,8 +12934,8 @@ function _getConsultantMonthStats(name, mk){
   const nmTarget= parseFloat(((ep.daysT||0)*_explicitNmRate(name,mk)).toFixed(2));
   const revMTD  = mine.reduce((s,e)=>s+(e.revenue||0),0);
   const nmMTD   = mine.reduce((s,e)=>s+(e.nm||0),0);
-  const revPct  = target>0?Math.round(revMTD/target*100):0;
-  const nmPct   = nmTarget>0?Math.round(nmMTD/nmTarget*100):0;
+  const revPct  = (target>0 && isFinite(revMTD/target)) ? Math.round(revMTD/target*100) : 0;
+  const nmPct   = (nmTarget>0 && isFinite(nmMTD/nmTarget)) ? Math.round(nmMTD/nmTarget*100) : 0;
   // working days with logged revenue
   const loggedDays = new Set(mine.filter(e=>(e.revenue||0)>0).map(e=>e.date));
   // days where they hit their daily run rate
@@ -13777,7 +13808,7 @@ function renderPersonProfile(name){
 
   const revMTD = mine.reduce((s,e)=>s+(e.revenue||0),0);
   const nmMTD  = mine.reduce((s,e)=>s+(e.nm||0),0);
-  const revPct = target>0?Math.round(revMTD/target*100):0;
+  const revPct = (target>0 && isFinite(revMTD/target)) ? Math.round(revMTD/target*100) : 0;
   const nmPct  = nmTarget>0?Math.round(nmMTD/nmTarget*100):0;
 
   // Team
@@ -14366,6 +14397,16 @@ function _applyDefaults(){
   if(!APP.months)        APP.months = {};
   if(!APP.activeMonth)   APP.activeMonth = todayKey();
   if(!APP.months[APP.activeMonth]) APP.months[APP.activeMonth]={entries:[]};
+  // Normalise entries in all months: Firebase can return numeric-keyed
+  // objects instead of arrays when array keys are sparse. Fix on every load.
+  Object.keys(APP.months).forEach(mk=>{
+    const m = APP.months[mk];
+    if(!m) return;
+    if(!m.entries) { m.entries = []; return; }
+    if(!Array.isArray(m.entries)){
+      m.entries = Object.values(m.entries).filter(Boolean);
+    }
+  });
   if(!APP.teams)         APP.teams = {};
   if(!APP.bizTargets)    APP.bizTargets = {};
   if(!APP.holidays)      APP.holidays = {};
@@ -14410,7 +14451,7 @@ Promise.all([
 
   // Real-time listener — fires whenever any client saves
   _dbRef.on('value', snap=>{
-    if(_ignoreNextSnapshot){ _ignoreNextSnapshot=false; return; }
+    if(_ignoreNextSnapshot > 0){ _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1); return; }
     const remote = snap.val();
     if(!remote) return;
     APP = remote;
@@ -20459,7 +20500,7 @@ function buildForecastCard(){
           <div class="fc-sec-block">
             <div class="fc-sec-lbl">Days Elapsed</div>
             <div class="fc-sec-val">${wdElapsed} / ${totalWD}</div>
-            <div class="fc-sec-sub">${Math.round(wdElapsed/totalWD*100)}% of month done</div>
+            <div class="fc-sec-sub">${totalWD > 0 ? Math.round(wdElapsed/totalWD*100) : 0}% of month done</div>
           </div>
           <div class="fc-sec-block">
             <div class="fc-sec-lbl">Active Consultants</div>
@@ -21478,7 +21519,7 @@ function bcAdviceAutoPopulate(){
 // ── Advice-specific bcRecalc ──────────────────────────────────────
 function bcRecalcAdvice(){
   const wdQ      = parseInt(document.getElementById('bcWorkingDaysMonth')?.value) || 66;
-  const yourDays = parseInt(document.getElementById('bcYourDays')?.value) || wdQ;
+  const yourDays = Math.max(1, parseInt(document.getElementById('bcYourDays')?.value) || wdQ);
   const revenue  = parseFloat(document.getElementById('bcRevenue')?.value) || 0;
   const type     = (typeof _bcType !== 'undefined') ? _bcType : 'nonsenior';
   const area     = document.getElementById('bcResultsArea');
@@ -21728,7 +21769,7 @@ if(typeof buildLiveBonusCard === 'function'){
         </div>`;
       }
 
-      const paceRPD  = revQ / elapsedQWD;
+      const paceRPD  = elapsedQWD > 0 ? revQ / elapsedQWD : 0;
       const belowMin = paceRPD < 450;
       const { bonus: projectedBonus, bracket } = adviceBonusForRPD(paceRPD, personType);
 
@@ -21759,7 +21800,7 @@ if(typeof buildLiveBonusCard === 'function'){
       const projColor = belowMin ? 'var(--text3)' : onTarget ? 'var(--green)' : paceRPD >= 450 ? 'var(--amber)' : 'var(--text3)';
 
       // Quarterly progress %
-      const qPct = Math.round((elapsedQWD / totalQWD) * 100);
+      const qPct = totalQWD > 0 ? Math.round((elapsedQWD / totalQWD) * 100) : 0;
 
       return `
         <div class="bonus-live-card">
@@ -21880,9 +21921,15 @@ function teamWrittenMTD(mk){
 // existing deal-tracking / Firebase logic.
 function _patchWrittenInEntries(mk, date, writtenMap){
   if(!Object.keys(writtenMap).length) return;
+  // Use 600ms to outlast saveApp's 400ms debounce, ensuring we patch
+  // the already-committed entries array rather than a stale copy.
+  // We re-read entries at patch time (not at call time) for safety.
   setTimeout(()=>{
     try{
-      const entries = (typeof getEntries === 'function') ? getEntries(mk) : [];
+      if(typeof getEntries !== 'function') return;
+      // Always re-read entries fresh at patch time
+      const entries = getEntries(mk);
+      if(!entries || !entries.length) return;
       let dirty = false;
       entries.forEach(e=>{
         if(e.date !== date) return;
@@ -21897,10 +21944,24 @@ function _patchWrittenInEntries(mk, date, writtenMap){
       const role = typeof _currentUser !== 'undefined' ? (_currentUser?.role||'consultant') : 'consultant';
       if((role==='manager'||role==='master') && typeof _db !== 'undefined' && typeof _currentDivKey !== 'undefined'){
         const divDbKey = (DIVISIONS[_currentDivKey]||DIVISIONS.core).dbKey;
-        _db.ref(`${divDbKey}/months/${mk}/entries`).set(entries).catch(()=>{});
+        // Use update() per-entry instead of set() to avoid overwriting concurrent writes
+        const divRef = _db.ref(\`\${divDbKey}/months/\${mk}/entries\`);
+        divRef.once('value').then(snap=>{
+          const live = snap.val();
+          if(!live) return;
+          // Normalise live to array
+          const liveArr = Array.isArray(live) ? live : Object.values(live).filter(Boolean);
+          let liveDirty = false;
+          liveArr.forEach(e=>{
+            if(e.date !== date) return;
+            const w = writtenMap[e.name];
+            if(w !== undefined && w !== e.written){ e.written = w; liveDirty = true; }
+          });
+          if(liveDirty) divRef.set(liveArr).catch(()=>{});
+        }).catch(()=>{});
       }
     } catch(e){ console.warn('written patch error', e); }
-  }, 350);
+  }, 600);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -22013,7 +22074,10 @@ if(typeof saveAllEntries === 'function'){
     const date = document.getElementById('entryDate')?.value || '';
     const writtenMap = {};
     if(typeof APP !== 'undefined' && mk){
-      const active = APP.people.filter(p=> typeof personTargetForMonth === 'function' ? personTargetForMonth(p,mk)>0 : true);
+      const active = (typeof personTargetForMonth === 'function')
+        ? APP.people.filter(p=>personTargetForMonth(p,mk)>0)
+        : APP.people;
+      if(!active.length) return ret; // safety: don't patch if no active people
       active.forEach(p=>{
         const baseWritten = parseFloat(document.getElementById('written_'+p.name)?.value)||0;
         const addWritten  = parseFloat(document.getElementById('addwritten_'+p.name)?.value)||0;
@@ -22581,8 +22645,35 @@ if(typeof selectDivision === 'function'){
 }
 
 })(); // end advice written KPI module
+
+// ═══════════════════════════════════════════════════════════════════
+// GLOBAL ERROR BOUNDARY
+// Catches uncaught JS exceptions and shows a user-friendly message
+// instead of silently breaking the UI.
+// ═══════════════════════════════════════════════════════════════════
+window.addEventListener('error', function(evt){
+  const msg = evt?.message || 'Unknown error';
+  const src = evt?.filename ? evt.filename.split('/').pop() : '';
+  const loc = evt?.lineno ? ' (line '+evt.lineno+')' : '';
+  console.error('Uncaught error:', msg, src, loc);
+  // Show toast only for non-network and non-script-load errors
+  if(typeof showToast === 'function' && !msg.includes('Script error')){
+    showToast('Something went wrong — try refreshing if the page looks broken', 'err');
+  }
+});
+
+window.addEventListener('unhandledrejection', function(evt){
+  const reason = evt?.reason?.message || evt?.reason || 'Unknown';
+  console.error('Unhandled promise rejection:', reason);
+  if(typeof showToast === 'function'){
+    showToast('A background operation failed — your data may not have saved. Check your connection.', 'err');
+  }
+});
+
 </script>
 
 </body>
 </html>
+
+  } catch(e){ console.error("renderMonthlySummary error:",e); const el=document.getElementById("monthlySummaryContent"); if(el) el.innerHTML='<div style="padding:20px;color:var(--red);font-family:var(--fm)">Failed to load summary — please refresh.</div>'; }
 
