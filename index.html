@@ -2113,6 +2113,8 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
 /* Arctic light theme fix */
 [data-theme="arctic"] .ham-btn{color:var(--text);}
 
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 </style>
 <body class="pre-auth">
 
@@ -4372,9 +4374,9 @@ function dismissGreeting(){
 // DIVISION CONFIG
 // ═══════════════════════════════════════════════════════════════════
 const DIVISIONS = {
-  guidance: { label:'Specialist Guidance',icon:'🔗', dbKey:'perfDash2_guidance' },
-  advice:   { label:'Advice',             icon:'💼', dbKey:'perfDash2_advice' },
-  core:     { label:'Core',               icon:'⭐', dbKey:'perfDash2_core' }
+  guidance: { label:'Specialist Guidance', icon:'🔗', dbKey:'perfDash2_guidance', desc:'Specialist guidance advisors' },
+  advice:   { label:'Advice',              icon:'💼', dbKey:'perfDash2_advice',   desc:'Full advice team' },
+  core:     { label:'Core',               icon:'⭐', dbKey:'perfDash2_core',     desc:'Core team' }
 };
 
 const PASS_HASH = '04f5b70888c0c4bf5956cbca32acbd8701ae8d1d83db91fed942861c56934775';
@@ -4458,7 +4460,7 @@ function applyRoleVisibility(){
   });
   const divBadge = document.getElementById('divisionBadge');
   const divArrow  = divBadge?.querySelector('span:last-child');
-  const isLocked  = role==='consultant' || (role==='manager' && !!_currentUser?.divKey && !!DIVISIONS[_currentUser?.divKey]);
+  const isLocked  = role === 'consultant'; // only consultants locked — managers/masters can switch freely
   if(divBadge){
     if(isLocked){
       divBadge.style.cursor='default'; divBadge.style.pointerEvents='none'; divBadge.title='';
@@ -4711,17 +4713,85 @@ function selectDivision(key){
 }
 
 function switchDivision(){
-  // Consultants and managers with assigned division cannot switch
+  // Only consultants cannot switch divisions
   if(_currentUser?.role === 'consultant') return;
-  if(_currentUser?.role === 'manager' && _currentUser?.divKey && DIVISIONS[_currentUser.divKey]) return;
+  // Show the inline switcher popover instead of the full-screen picker
+  _showDivSwitcher();
+}
+
+function _doSwitchDivision(key){
+  if(key === _currentDivKey){ _hideDivSwitcher(); return; }
+  _hideDivSwitcher();
   if(_currentDbRef){ _currentDbRef.off(); _currentDbRef = null; _dbRef = null; }
-  if(_notifListener){ _notifListener.off(); _notifListener = null; }
+  if(typeof _notifListener !== 'undefined' && _notifListener){ _notifListener.off(); _notifListener = null; }
   _appInited = false;
-  // Clear rendered content so stale data isn't visible while new division loads
-  document.getElementById('kpiRow').innerHTML    = '';
-  document.getElementById('cardsGrid').innerHTML = '';
-  document.getElementById('teamSummaryRow').innerHTML = '';
-  document.getElementById('divisionScreen').classList.remove('hidden');
+  _ignoreNextSnapshot = 0;
+  clearTimeout(_saveTimer);
+  // Clear rendered content so stale data is not visible while new division loads
+  const clearIds = ['kpiRow','cardsGrid','teamSummaryRow'];
+  clearIds.forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
+  const _dashC = document.getElementById('dashContent');
+  if(_dashC) _dashC.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text3);font-family:var(--fm)"><div style="font-size:28px;margin-bottom:12px;animation:spin 1s linear infinite;display:inline-block">⟳</div><br>Switching to ' + (DIVISIONS[key]?.label||key) + '…</div>';
+  selectDivision(key);
+}
+
+function _showDivSwitcher(){
+  _hideDivSwitcher(); // close any existing
+  const badge = document.getElementById('divisionBadge');
+  if(!badge) return;
+
+  const popup = document.createElement('div');
+  popup.id = 'divSwitcherPopup';
+  popup.style.cssText = `
+    position:absolute;top:calc(100% + 8px);right:0;
+    background:var(--surface);border:1px solid var(--border2);
+    border-radius:12px;padding:8px;min-width:200px;
+    box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:9999;
+    animation:fadeIn .12s ease;
+  `;
+
+  const header = `<div style="font-size:9px;font-weight:700;color:var(--text3);font-family:var(--fm);letter-spacing:.1em;text-transform:uppercase;padding:4px 8px 8px;border-bottom:1px solid var(--border2);margin-bottom:6px">Switch Division</div>`;
+
+  const divRows = Object.entries(DIVISIONS).map(([k,d])=>{
+    const isActive = k === _currentDivKey;
+    return `<div onclick="_doSwitchDivision('${k}')" style="
+      display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;
+      background:${isActive ? 'var(--accent-bg,rgba(94,156,245,.12))' : 'transparent'};
+      border:1px solid ${isActive ? 'var(--accent)' : 'transparent'};
+      transition:background .12s;
+    " onmouseover="if('${k}'!=='${_currentDivKey}') this.style.background='var(--surface2)'" onmouseout="if('${k}'!=='${_currentDivKey}') this.style.background='transparent'">
+      <span style="font-size:18px;line-height:1">${d.icon}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700;color:${isActive ? 'var(--accent)' : 'var(--text)'};font-family:var(--fm)">${d.label}</div>
+        <div style="font-size:10px;color:var(--text3);font-family:var(--fm)">${d.desc||''}</div>
+      </div>
+      ${isActive ? '<span style="font-size:10px;color:var(--accent);font-weight:700">✓ Active</span>' : ''}
+    </div>`;
+  }).join('');
+
+  popup.innerHTML = header + divRows;
+
+  // Position relative to the badge
+  badge.style.position = 'relative';
+  badge.appendChild(popup);
+
+  // Close on outside click
+  setTimeout(()=>{
+    document.addEventListener('click', _divSwitcherOutsideClick, { once:true, capture:true });
+  }, 10);
+}
+
+function _hideDivSwitcher(){
+  const el = document.getElementById('divSwitcherPopup');
+  if(el) el.remove();
+  document.removeEventListener('click', _divSwitcherOutsideClick, true);
+}
+
+function _divSwitcherOutsideClick(e){
+  if(!document.getElementById('divSwitcherPopup')) return;
+  if(!e.target.closest('#divSwitcherPopup') && !e.target.closest('#divisionBadge')){
+    _hideDivSwitcher();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
