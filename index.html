@@ -5181,7 +5181,10 @@ function calWorkDays(mk, personName){
   today.setHours(0,0,0,0);
   const [y, m] = mk.split('-').map(Number);
   const isActive = (y === today.getFullYear() && m === (today.getMonth()+1));
-  const cutoff = isActive ? today : new Date(y, m, 0);
+  // Use yesterday as cutoff for the active month — today hasn't finished yet
+  // so it should not count as an elapsed working day.
+  const yesterday = new Date(today.getTime() - 86400000);
+  const cutoff = isActive ? yesterday : new Date(y, m, 0);
   const hols = getHols(mk, personName||'');
   const sick = getSick(mk, personName||'');
   const allOff = [...new Set([...hols, ...sick])];
