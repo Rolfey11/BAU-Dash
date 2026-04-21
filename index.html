@@ -7714,7 +7714,6 @@ function setMcsSort(col){
 }
 
 function renderMonthlySummary(){
-  try {
   populateAllSelects();
   const mk     = document.getElementById('mcsMonth').value || APP.activeMonth;
   const stats  = calcStats(mk).filter(s=>s.target>0);
@@ -20345,7 +20344,7 @@ if(typeof logoutUser === 'function'){
 // Also kick the visibility update shortly after load in case a session restore happened
 setTimeout(()=>{
   try{
-    if(_currentUser){
+    if(typeof _currentUser !== 'undefined' && _currentUser){
       _applyTicketNavVisibility();
       startTicketsListener();
     }
@@ -21250,7 +21249,7 @@ if(typeof logoutUser === 'function'){
 // Also kick startup after a moment in case of session-restore
 setTimeout(()=>{
   try{
-    if(_currentUser){
+    if(typeof _currentUser !== 'undefined' && _currentUser){
       _ensureKudosPageExists();
       startKudosListener();
     }
@@ -21945,7 +21944,7 @@ function _patchWrittenInEntries(mk, date, writtenMap){
       if((role==='manager'||role==='master') && typeof _db !== 'undefined' && typeof _currentDivKey !== 'undefined'){
         const divDbKey = (DIVISIONS[_currentDivKey]||DIVISIONS.core).dbKey;
         // Use update() per-entry instead of set() to avoid overwriting concurrent writes
-        const divRef = _db.ref(\`\${divDbKey}/months/\${mk}/entries\`);
+        const divRef = _db.ref(`${divDbKey}/months/${mk}/entries`);
         divRef.once('value').then(snap=>{
           const live = snap.val();
           if(!live) return;
@@ -22674,6 +22673,4 @@ window.addEventListener('unhandledrejection', function(evt){
 
 </body>
 </html>
-
-  } catch(e){ console.error("renderMonthlySummary error:",e); const el=document.getElementById("monthlySummaryContent"); if(el) el.innerHTML='<div style="padding:20px;color:var(--red);font-family:var(--fm)">Failed to load summary — please refresh.</div>'; }
 
