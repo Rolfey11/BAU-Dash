@@ -5082,14 +5082,16 @@ function calcStats(monthKey){
     const sickWorkDays  = getSickWorkDayCount(monthKey, p.name);
     const effectiveDays = Math.max(0, (ep.daysT||0) - sickWorkDays);
     const target   = Math.round((ep.riskPerDay||0) * effectiveDays);
-    const nmTarget = parseFloat((effectiveDays * (ep.nmPerDay||nmRateFor(p.name||''))).toFixed(2));
+    const nmTarget = _hasExplicitNm(p.name, monthKey)
+      ? parseFloat((effectiveDays * (ep.nmPerDay||nmRateFor(p.name||''))).toFixed(2))
+      : 0;
 
     // calendar working days elapsed for this person (holidays excluded)
     const calDays = calWorkDays(monthKey, p.name);
 
     // ── COP: day-by-day cumulative run rate vs actual (matches individual card MTD diff)
     // positive = ahead, negative = behind — sick days excluded from run rate accumulation
-    const _nmR     = ep.nmPerDay||nmRateFor(p.name||'');
+    const _nmR     = _hasExplicitNm(p.name, monthKey) ? (ep.nmPerDay||nmRateFor(p.name||'')) : 0;
     const _today2  = _localDateStr(new Date());
     const _wdElapsed = workingDatesInMonth(monthKey).filter(ds => ds <= _today2);
     let _cumRR = 0, _cumNmRR = 0;
@@ -5105,7 +5107,9 @@ function calcStats(monthKey){
 
     // ── percentages ──────────────────────────────────────────────
     const revPct = target>0   ? Math.round(revMTD  / target   * 100) : 0;
-    const nmTargetFixed = effectiveDays * (ep.nmPerDay||nmRateFor(p.name||''));
+    const nmTargetFixed = _hasExplicitNm(p.name, monthKey)
+      ? effectiveDays * (ep.nmPerDay||nmRateFor(p.name||''))
+      : 0;
     const nmPct  = nmTargetFixed>0 ? Math.round(nmMTD / nmTargetFixed * 100) : 0;
 
     const riskAhead = copRev >= 0;
@@ -6295,7 +6299,8 @@ function calcTeamCOP(mk, memberNames, teamKey){
     const dayRR2 = rrOvr2 !== undefined ? rrOvr2 : calcRR2;
     const dayNmRR2 = memberRPDs.reduce((s,{name})=>{
       const st = getDayStatus(mk,name,ds);
-      return s + (st!=='hol'&&st!=='bh' ? 1.75 : 0);
+      if(st==='hol'||st==='bh') return s;
+      return s + _explicitNmRate(name, mk);
     }, 0);
     cumActual   += (dayLookup[ds]||{}).rev||0;
     cumRR       += dayRR2;
@@ -6328,8 +6333,8 @@ function renderDashboard(){
       .map(n=>`<option value="${n}"${n===elapsed?' selected':''}>${n}</option>`).join('');
   }
 
-  // NM target = sum of each active person's daysT × 1.75
-  const nmTarget = active.reduce((s,p)=>{ const ep2=getPersonForMonth(p,mk); return s+(ep2.daysT||0)*(ep2.nmPerDay||nmRate()); }, 0);
+  // NM target = sum of each active person's daysT × their explicit NM rate (0 if not set)
+  const nmTarget = active.reduce((s,p)=>{ const ep2=getPersonForMonth(p,mk); return s+(ep2.daysT||0)*_explicitNmRate(p.name,mk); }, 0);
 
   // COP — same day-by-day loop as teams tab (matches MTD Diff at bottom of teams table)
   const today2   = _localDateStr(new Date());
@@ -6349,7 +6354,7 @@ function renderDashboard(){
       if(st!=='hol'&&st!=='bh'){
         const personOvr = ((APP.personRROverrides||{})[p.name]||{})[mk]?.[ds];
         dayRR += personOvr !== undefined ? personOvr : rpd;
-        dayNmRR += 1.75;
+        dayNmRR += _explicitNmRate(p.name, mk);
       }
     });
     const dayActual = entries.filter(e=>e.date===ds).reduce((s,e)=>s+(e.revenue||0),0);
@@ -6433,7 +6438,7 @@ function renderDashboard(){
             const rpd = ep.riskPerDay||0;
             const personOvr = ((APP.personRROverrides||{})[name]||{})[mk]?.[todayStr];
             todayRevRR += personOvr!==undefined ? personOvr : rpd;
-            const _ep2=getPersonForMonth(person,mk); todayNmRR  += (_ep2.nmPerDay||nmRate());
+            todayNmRR += _explicitNmRate(name, mk);
           }
         });
         const rrOvr = ((APP.rrOverrides||{})[key]||{})[mk]?.[todayStr];
@@ -6553,7 +6558,7 @@ function renderDashboard(){
       if(st!=='hol'&&st!=='bh'){
         const personOvr = ((APP.personRROverrides||{})[name]||{})[mk]?.[ds];
         dayRR += personOvr !== undefined ? personOvr : rpd;
-        dayNmRR += 1.75;
+        dayNmRR += _explicitNmRate(name, mk);
       }
     });
     const dayActual = (dayLookupDash[ds]||{}).rev||0;
@@ -6977,6 +6982,31 @@ function nmRateFor(personName){
   return nmRate(); // global default
 }
 
+// Returns true ONLY when an NM target has been explicitly configured for
+// this person — either via a person-level nmRates entry or a month-level
+// nmPerDay override.  The global 1.75 default does NOT count as "set".
+// Used everywhere NM run-rate / COP figures are calculated so that
+// consultants with no NM target never generate phantom NM obligations.
+function _hasExplicitNm(personName, mk){
+  if(APP.nmRates && APP.nmRates[personName] != null) return true;
+  if(mk && APP.monthOverrides && APP.monthOverrides[mk]){
+    const ovr = APP.monthOverrides[mk][personName];
+    if(ovr && ovr.nmPerDay !== undefined) return true;
+  }
+  return false;
+}
+
+// Returns the explicit NM per-day rate for a person, or 0 if none is set.
+function _explicitNmRate(personName, mk){
+  if(!_hasExplicitNm(personName, mk)) return 0;
+  if(mk && APP.monthOverrides && APP.monthOverrides[mk]){
+    const ovr = APP.monthOverrides[mk][personName];
+    if(ovr && ovr.nmPerDay !== undefined) return ovr.nmPerDay;
+  }
+  if(APP.nmRates && APP.nmRates[personName] != null) return APP.nmRates[personName];
+  return 0;
+}
+
 // ── Settings: open/close sub-pages ───────────────────────────────
 function openSettingsSub(sub){
   // Hide hub
@@ -7389,8 +7419,8 @@ function saveMonthOverride(mk, name, field, rawVal){
   if(tgtEl){
     if(hasR||hasD||hasN){
       const revTgt = Math.round((ep.riskPerDay||0)*(ep.daysT||0));
-      const nmTgt  = parseFloat(((ep.daysT||0)*(ep.nmPerDay||nmRate())).toFixed(1));
-      tgtEl.innerHTML = `<span>£${revTgt.toLocaleString()}</span><span style="font-weight:400;color:var(--text3)">${nmTgt} NM</span>`;
+      const nmTgt  = _hasExplicitNm(name, mk) ? parseFloat(((ep.daysT||0)*_explicitNmRate(name,mk)).toFixed(1)) : 0;
+      tgtEl.innerHTML = `<span>£${revTgt.toLocaleString()}</span>${nmTgt>0?`<span style="font-weight:400;color:var(--text3)">${nmTgt} NM</span>`:''}`;
       tgtEl.style.color = 'var(--green)';
     } else {
       tgtEl.innerHTML = '—'; tgtEl.style.color = 'var(--text3)';
@@ -7417,7 +7447,7 @@ function _refreshMtFooter(mk){
   footer.innerHTML = `
     <div style="font-size:11px;color:var(--text3);font-family:var(--fm)">Team total</div>
     <div style="font-size:20px;font-weight:700;font-family:var(--fm);color:${configuredCount>0?'var(--green)':'var(--text3)'}">${configuredCount>0?'£'+teamEffTgt.toLocaleString():'—'}</div>
-    ${configuredCount>0?`<div style="font-size:14px;font-weight:600;font-family:var(--fm);color:var(--blue)">${people.reduce((s,p)=>{const ep=getPersonForMonth(p,mk);return s+parseFloat(((ep.daysT||0)*(ep.nmPerDay||nmRate())).toFixed(1));},0).toFixed(1)} NM target</div>`:``}
+    ${configuredCount>0?`<div style="font-size:14px;font-weight:600;font-family:var(--fm);color:var(--blue)">${people.filter(p=>_hasExplicitNm(p.name,mk)).reduce((s,p)=>{const ep=getPersonForMonth(p,mk);return s+parseFloat(((ep.daysT||0)*_explicitNmRate(p.name,mk)).toFixed(1));},0).toFixed(1)} NM target</div>`:``}
     <div style="font-size:11px;color:var(--text3);font-family:var(--fm)">${configuredCount>0?configuredCount+' consultant'+(configuredCount!==1?'s':'')+' configured':'Fill in the fields above to set targets for this month'}</div>
     ${configuredCount>0?`<button class="btn btn-s" style="font-size:11px;padding:5px 10px;margin-left:auto" onclick="clearAllMonthOverrides('${mk}')">Reset all</button>`:''}
   `;
@@ -8136,7 +8166,7 @@ function renderDailySend(){
         const ovr   = ovrs[p.name] || {};
         const rpd   = ovr.riskPerDay !== undefined ? ovr.riskPerDay : (p.riskPerDay||0);
         const daysT = ovr.daysT      !== undefined ? ovr.daysT      : (p.daysT||0);
-        if(rpd>0&&daysT>0){ target+=Math.round(rpd*daysT); nmTarget+=daysT*1.75; }
+        if(rpd>0&&daysT>0){ target+=Math.round(rpd*daysT); const _hasNm=((data.nmRates||{})[p.name]!=null)||((ovrs[p.name]||{}).nmPerDay!==undefined); if(_hasNm){ const _nmR=ovrs[p.name]?.nmPerDay??data.nmRates?.[p.name]??0; nmTarget+=daysT*_nmR; } }
       });
       const base = useNm ? nmTarget : target;
       if(!base) return elapsedDates.map(()=>0);
@@ -10428,7 +10458,9 @@ function renderConsultantDaily(){
   const sickDaysCount  = p ? getSickWorkDayCount(mk, myName) : 0;
   const effectiveDaysT = Math.max(0, daysT - sickDaysCount);
   const target     = Math.round(riskPerDay * effectiveDaysT);
-  const nmTarget   = parseFloat((effectiveDaysT * nmRate()).toFixed(2));
+  const nmTarget   = _hasExplicitNm(myName, mk)
+    ? parseFloat((effectiveDaysT * _explicitNmRate(myName, mk)).toFixed(2))
+    : 0;
 
   const entries = getEntries(mk);
   const mine    = entries.filter(e=>e.name===myName);
@@ -10439,7 +10471,8 @@ function renderConsultantDaily(){
   const copRiskNeeded = riskPerDay>0 ? (riskPerDay*(elapsed+1) - revMTD) : 0;
   // Mirror the riskPerDay guard above — if no NM target is set for this month
   // (nmTarget=0 because daysT=0 or fully offset by sickness), COP NM needed = 0.
-  const copNmNeeded   = nmTarget>0 ? ((elapsed*nmRate()+nmRate()) - nmMTD) : 0;
+  const _myNmR = _explicitNmRate(myName, mk);
+  const copNmNeeded   = (nmTarget>0 && _myNmR>0) ? ((elapsed*_myNmR+_myNmR) - nmMTD) : 0;
   const rpdNeeded     = (effectiveDaysT - elapsed)>0 ? forTarget/(effectiveDaysT - elapsed) : 0;
   const daysWorked    = new Set(mine.filter(e=>(e.revenue||0)>0||(e.nm||0)>0).map(e=>e.date)).size;
 
@@ -11381,7 +11414,9 @@ function generateMOCommentary() {
           const hols = ((rawData.holidays || {})[mk] || {})[p.name] || [];
           const sick = ((rawData.sickness  || {})[mk] || {})[p.name] || [];
           if (!hols.includes(prevDay) && !sick.includes(prevDay) && !isBankHoliday(prevDay)) {
-            prevRR += rpd; prevNmRR += 1.75;
+            prevRR += rpd;
+const _hasNmPrev = ((rawData.nmRates||{})[p.name]!=null) || (((rawData.monthOverrides||{})[mk]||{})[p.name]?.nmPerDay!==undefined);
+if(_hasNmPrev){ const _mOvr=((rawData.monthOverrides||{})[mk]||{})[p.name]||{}; prevNmRR += (_mOvr.nmPerDay??rawData.nmRates?.[p.name]??0); }
           }
         });
       }
@@ -12009,7 +12044,7 @@ function renderTeamDashboard(container, managerName){
 
   // Team COP — use per-person stats so we only count people who have
   // teamCopRev and teamCopNm are derived from the daily loop below
-  const teamNmTarget = teamPeople.reduce((s,p)=>s+(getPersonForMonth(p,mk).daysT||0)*1.75,0);
+  const teamNmTarget = teamPeople.reduce((s,p)=>s+(getPersonForMonth(p,mk).daysT||0)*_explicitNmRate(p.name,mk),0);
 
   const teamImg = MANAGER_PHOTOS[managerName] || null;
 
@@ -12043,7 +12078,8 @@ function renderTeamDashboard(container, managerName){
     const isOvr  = _rrOvr !== undefined;
     const dayNmRR = memberRPDs.reduce((s,{name})=>{
       const st = getDayStatus(mk,name,ds);
-      return s + (st!=='hol'&&st!=='bh' ? 1.75 : 0);
+      if(st==='hol'||st==='bh') return s;
+      return s + _explicitNmRate(name, mk);
     }, 0);
     const dayActual = (dayLookup[ds]||{}).rev||0;
     const dayNm     = (dayLookup[ds]||{}).nm||0;
@@ -12665,9 +12701,9 @@ function renderPersonTracker(name){
   const today     = _localDateStr(new Date());
   const ep        = getPersonForMonth(p, mk);  // effective config for this month
   const riskPerDay= ep.riskPerDay||0;
-  const nmPerDay  = 1.75;
+  const nmPerDay  = _explicitNmRate(name, mk);
   const target    = Math.round(riskPerDay * (ep.daysT||0));
-  const nmTarget  = parseFloat(((ep.daysT||0)*1.75).toFixed(2));
+  const nmTarget  = parseFloat(((ep.daysT||0)*nmPerDay).toFixed(2));
   const teamKey   = _dbdTeam;
   const color     = _managerColor(teamKey)||'var(--accent)';
 
@@ -12864,7 +12900,7 @@ function _getConsultantMonthStats(name, mk){
   if(!p) return null;
   const ep      = getPersonForMonth(p, mk);
   const target  = Math.round((ep.riskPerDay||0)*(ep.daysT||0));
-  const nmTarget= parseFloat(((ep.daysT||0)*1.75).toFixed(2));
+  const nmTarget= parseFloat(((ep.daysT||0)*_explicitNmRate(name,mk)).toFixed(2));
   const revMTD  = mine.reduce((s,e)=>s+(e.revenue||0),0);
   const nmMTD   = mine.reduce((s,e)=>s+(e.nm||0),0);
   const revPct  = target>0?Math.round(revMTD/target*100):0;
@@ -13728,7 +13764,7 @@ function renderPersonProfile(name){
   const riskPerDay = ep.riskPerDay||0;
   const daysT      = ep.daysT||0;
   const target     = Math.round(riskPerDay * daysT);
-  const nmTarget   = parseFloat((daysT * 1.75).toFixed(2));
+  const nmTarget   = parseFloat((daysT * _explicitNmRate(name, mk)).toFixed(2));
 
   const entries    = getEntries(mk);
   const mine       = entries.filter(e=>e.name===name);
@@ -13772,7 +13808,7 @@ function renderPersonProfile(name){
     const isPRROvr     = _pRROvr !== undefined;
 
     if(!isOff) cumTgt   += _effRunRate;
-    if(!isOff) cumNmTgt += 1.75;
+    if(!isOff) cumNmTgt += _explicitNmRate(name, mk);
     cumRev += rev;
     cumNm  += nm;
 
@@ -20340,7 +20376,7 @@ function buildForecastCard(){
     // NM projection
     const nmTarget    = stats.reduce((s,p)=>{
       const ep = getPersonForMonth(p, mk);
-      return s + (ep.daysT||0) * (ep.nmPerDay || nmRate());
+      return s + (ep.daysT||0) * _explicitNmRate(p.name, mk);
     }, 0);
     const nmPerDay    = wdElapsed > 0 ? teamNm / wdElapsed : 0;
     const nmProjected = Math.round(nmPerDay * totalWD);
