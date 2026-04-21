@@ -23415,9 +23415,7 @@ function loginDoRestore(input){
             alert('✅ Restore complete! The page will now reload — log in normally.');
             location.reload();
           })
-          .catch(err => alert('Restore failed: ' + (err?.message||err) + '
-
-Check your internet connection.'));
+          .catch(err => alert('Restore failed: ' + (err?.message||err) + '\n\nCheck your internet connection.'));
       };
 
       // Firebase may not be initialised yet on the login screen
@@ -23500,10 +23498,7 @@ Check your internet connection.'));
       }
     };
   }
-}
-window.loginEmergencyRestore = loginEmergencyRestore;
-window.loginDoRestore       = loginDoRestore;
-)();
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // GLOBAL ERROR BOUNDARY
