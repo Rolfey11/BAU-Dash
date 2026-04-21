@@ -2354,7 +2354,13 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
     <div style="display:flex;gap:8px;align-items:center">
       <div style="display:flex;align-items:center;gap:6px">
         <span style="font-size:11px;color:var(--text3);font-family:var(--fm);white-space:nowrap">Working days elapsed:</span>
-        <select id="elapsedDaysSel" onchange="setElapsedDays(this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:700;font-family:var(--fm);color:var(--text);outline:none;cursor:pointer;width:70px;"></select>
+        <span id="elapsedDaysDisplay"
+  title="Click to override · double-click to reset to auto"
+  onclick="elapsedStartEdit()"
+  style="font-size:13px;font-weight:700;font-family:var(--fm);color:var(--text);min-width:28px;text-align:center;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;cursor:pointer;transition:border-color .15s;"
+  onmouseover="this.style.borderColor='var(--accent)'"
+  onmouseout="this.style.borderColor=APP.manualElapsed!=null?'var(--amber)':'var(--border2)'">—</span>
+<span id="elapsedAutoTag" style="display:none;font-size:9px;font-weight:700;font-family:var(--fm);color:var(--amber);letter-spacing:.04em;">MANUAL</span>
       </div>
       <button class="btn btn-s" onclick="exportDashboardCSV()">↓ Export CSV</button>
       <button class="btn btn-s" onclick="generateMonthlyReport()" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple);">📄 PDF Report</button>
@@ -2857,7 +2863,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
         <button class="btn btn-s" onclick="closeSettingsSub()" style="font-size:12px">← Back</button>
         <div>
           <div class="section-title">💾 Backup &amp; Restore</div>
-          <div class="section-sub">Automatic hourly snapshots saved in your browser · Export or restore any time</div>
+          <div class="section-sub">Full backup of all 3 divisions + users — auto snapshots every hour · Export or restore any time</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5135,6 +5141,7 @@ function isBankHoliday(ds){ return UK_BANK_HOLIDAYS.has(ds); }
 //   or to end of month (past months), excluding holidays, sickness
 //   and UK bank holidays for that person.
 function calWorkDays(mk, personName){
+  // If manually overridden, use that value
   if(APP.manualElapsed != null){
     const base = APP.manualElapsed;
     if(personName){
@@ -6468,13 +6475,20 @@ function _renderDashboardSafe(){
   const totalNM  = active.reduce((s,p)=>s+p.nmMTD,0);
   const pct      = teamTgt>0 ? Math.round(totalRev/teamTgt*100) : 0;
   const ahead    = active.filter(p=>p.riskAhead).length;
-  const elapsed  = APP.manualElapsed!=null ? APP.manualElapsed : calWorkDaysTeam(mk);
+  const elapsed  = APP.manualElapsed != null ? APP.manualElapsed : calWorkDaysTeam(mk);
 
-  // Populate elapsed days selector
-  const elSel = document.getElementById('elapsedDaysSel');
-  if(elSel){
-    elSel.innerHTML = Array.from({length:31},(_,i)=>i)
-      .map(n=>`<option value="${n}"${n===elapsed?' selected':''}>${n}</option>`).join('');
+  // Update elapsed days display
+  const elDisplay = document.getElementById('elapsedDaysDisplay');
+  const elAutoTag = document.getElementById('elapsedAutoTag');
+  if(elDisplay){
+    elDisplay.textContent = elapsed;
+    const isManual = APP.manualElapsed != null;
+    elDisplay.style.borderColor = isManual ? 'var(--amber)' : 'var(--border2)';
+    elDisplay.style.color = isManual ? 'var(--amber)' : 'var(--text)';
+    elDisplay.title = isManual
+      ? `Manual override: ${elapsed} days · Double-click to reset to auto`
+      : `Auto: ${elapsed} working days elapsed · Click to override`;
+    if(elAutoTag) elAutoTag.style.display = isManual ? '' : 'none';
   }
 
   // NM target = sum of each active person's daysT × their explicit NM rate (0 if not set)
@@ -8057,7 +8071,7 @@ function renderDailySend(){
   // ── Working days ─────────────────────────────────────────────────
   const allWD  = workingDatesInMonth(mk);
   const totalWD    = allWD.length;
-  const elapsedWD  = APP.manualElapsed != null ? APP.manualElapsed : calWorkDaysTeam(mk);
+  const elapsedWD  = calWorkDaysTeam(mk);
   const remainingWD = Math.max(0, totalWD - elapsedWD);
   const elapsedPct  = totalWD > 0 ? Math.round(elapsedWD / totalWD * 100) : 0;
 
@@ -11262,7 +11276,7 @@ function renderManagerOverview(){
       if(!data.holidays)      data.holidays      = {};
       if(!data.sickness)      data.sickness      = {};
       if(!data.monthOverrides)data.monthOverrides= {};
-      if(data.manualElapsed==null) data.manualElapsed = null;
+      data.manualElapsed = null; // always auto
       return { key, data };
     }).catch(()=>({ key, data:{ people:[], months:{}, teams:{}, holidays:{}, sickness:{}, monthOverrides:{}, manualElapsed:null } }));
   });
@@ -11807,11 +11821,71 @@ function copyCommentary() {
   }
 }
 
-function setElapsedDays(val){
-  const n2 = parseInt(val);
-  APP.manualElapsed = isNaN(n2) ? null : n2;
-  saveApp();
-  renderDashboard();
+// ── Elapsed days inline edit ─────────────────────────────────────
+function elapsedStartEdit(){
+  const display = document.getElementById('elapsedDaysDisplay');
+  if(!display) return;
+  // Already editing?
+  if(document.getElementById('elapsedDaysInput')) return;
+
+  const mk   = typeof APP !== 'undefined' ? APP.activeMonth : '';
+  const auto = calWorkDaysTeam(mk);
+  const cur  = APP.manualElapsed != null ? APP.manualElapsed : auto;
+
+  // Swap span for a small input
+  const input = document.createElement('input');
+  input.id = 'elapsedDaysInput';
+  input.type = 'number';
+  input.min = '0';
+  input.max = '31';
+  input.value = cur;
+  input.style.cssText = 'width:56px;font-size:13px;font-weight:700;font-family:var(--fm);text-align:center;background:var(--surface2);border:1.5px solid var(--accent);border-radius:6px;padding:4px 6px;color:var(--text);outline:none;';
+
+  display.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = ()=>{
+    const val = parseInt(input.value);
+    const isValid = !isNaN(val) && val >= 0 && val <= 31;
+    APP.manualElapsed = isValid ? val : null;
+    saveApp();
+    // Restore the span
+    const span = document.createElement('span');
+    span.id = 'elapsedDaysDisplay';
+    span.style.cssText = 'font-size:13px;font-weight:700;font-family:var(--fm);min-width:28px;text-align:center;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;cursor:pointer;transition:border-color .15s;';
+    span.title = 'Click to override · Double-click to reset to auto';
+    span.onclick = elapsedStartEdit;
+    span.onmouseover = function(){ this.style.borderColor='var(--accent)'; };
+    span.onmouseout  = function(){ this.style.borderColor=APP.manualElapsed!=null?'var(--amber)':'var(--border2)'; };
+    input.replaceWith(span);
+    renderDashboard();
+  };
+
+  const cancel = ()=>{
+    const span = document.createElement('span');
+    span.id = 'elapsedDaysDisplay';
+    span.style.cssText = 'font-size:13px;font-weight:700;font-family:var(--fm);min-width:28px;text-align:center;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;cursor:pointer;transition:border-color .15s;';
+    span.title = 'Click to override · Double-click to reset to auto';
+    span.onclick = elapsedStartEdit;
+    span.onmouseover = function(){ this.style.borderColor='var(--accent)'; };
+    span.onmouseout  = function(){ this.style.borderColor=APP.manualElapsed!=null?'var(--amber)':'var(--border2)'; };
+    input.replaceWith(span);
+    renderDashboard();
+  };
+
+  input.addEventListener('keydown', e=>{
+    if(e.key === 'Enter')  { e.preventDefault(); commit(); }
+    if(e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+
+  // Double-click on the span resets to auto — attach to the input too
+  input.addEventListener('dblclick', ()=>{
+    APP.manualElapsed = null;
+    saveApp();
+    cancel();
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -11874,7 +11948,7 @@ function renderBizTarget(){
   const totalRev = entries.reduce((s,e)=>s+(e.revenue||0),0);
   const totalNM  = entries.reduce((s,e)=>s+(e.nm||0),0);
 
-  const elapsed  = APP.manualElapsed || calWorkDaysTeam(mk);
+  const elapsed  = calWorkDaysTeam(mk);
   const revTarget= cfg.revTarget||0;
   const nmTarget = cfg.nmTarget||0;
   const rpp      = cfg.ratePerPerson||1200;
@@ -12202,7 +12276,7 @@ function renderTeamDashboard(container, managerName){
   const teamNmMTD  = stats.reduce((s,p)=>s+p.nmMTD,0);
   const teamTgt    = stats.reduce((s,p)=>s+p.target,0);
   const teamPct    = teamTgt>0?Math.round(teamRevMTD/teamTgt*100):0;
-  const elapsed    = APP.manualElapsed || calWorkDaysTeam(mk);
+  const elapsed    = calWorkDaysTeam(mk);
   const ahead      = stats.filter(p=>p.riskAhead).length;
 
   // Team COP — use per-person stats so we only count people who have
@@ -14356,7 +14430,7 @@ function generateMonthlyReport(){
   const mk      = APP.activeMonth;
   const stats   = calcStats(mk).filter(s=>s.target>0);
   const div     = DIVISIONS[_currentDivKey]||DIVISIONS.core;
-  const elapsed = APP.manualElapsed != null ? APP.manualElapsed : calWorkDaysTeam(mk);
+  const elapsed = calWorkDaysTeam(mk);
   const allWD   = workingDatesInMonth(mk).length;
   const remaining = Math.max(0, allWD - elapsed);
   const elPct   = allWD>0 ? Math.round(elapsed/allWD*100) : 0;
@@ -14549,7 +14623,7 @@ function _applyDefaults(){
   if(!APP.nmRates)       APP.nmRates = {};
   if(APP.nmRate == null) APP.nmRate = 1.75; // NM per working day target
   if(!APP.monthOverrides) APP.monthOverrides = {};
-  if(APP.manualElapsed == null) APP.manualElapsed = null;
+  APP.manualElapsed = null; // always automatic — never override
   if(!APP.rrOverrides)       APP.rrOverrides = {};
   if(!APP.personRROverrides) APP.personRROverrides = {};
   if(!APP.people)        APP.people = [];
@@ -22820,44 +22894,82 @@ function _bkpReady(){
   return _bkpOpen();
 }
 
-// ── Take a snapshot ──────────────────────────────────────────────
+// ── Take a full snapshot across ALL divisions + shared data ─────────
 function bkpSnapshot(label){
-  if(typeof APP === 'undefined' || !APP || !APP.people) return;
+  if(typeof _db === 'undefined' || !_db) return;
   const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
   const now    = Date.now();
-  const ts     = new Date(now);
-  const dateStr = ts.toISOString().slice(0,10); // YYYY-MM-DD
+  const dateStr = new Date(now).toISOString().slice(0,10);
 
-  const snapshot = {
-    id:        `${divKey}_${now}`,
-    divKey,
-    timestamp: now,
-    dateStr,
-    label:     label || 'Auto',
-    type:      'hourly',
-    people:    (APP.people||[]).length,
-    months:    Object.keys(APP.months||{}).length,
-    data:      JSON.parse(JSON.stringify(APP)) // deep clone
-  };
+  // Read all three division roots + shared data concurrently
+  const divKeys = Object.keys(DIVISIONS);
+  const divPromises = divKeys.map(k =>
+    _db.ref(DIVISIONS[k].dbKey).once('value')
+      .then(s => ({ key:k, data: s.val()||{} }))
+      .catch(() => ({ key:k, data:{} }))
+  );
+  const usersPromise = _db.ref('perfDash2_core/cavendishUsers').once('value')
+    .then(s => s.val()||{}).catch(()=>({}));
+  const ticketsPromise = _db.ref('perfDash2_core/tickets').once('value')
+    .then(s => s.val()||{}).catch(()=>({}));
+  const kudosPromise = _db.ref('perfDash2_core/kudos').once('value')
+    .then(s => s.val()||{}).catch(()=>({}));
 
-  _bkpReady().then(db=>{
-    const tx    = db.transaction(BKP_STORE, 'readwrite');
-    const store = tx.objectStore(BKP_STORE);
-    store.put(snapshot);
+  Promise.all([...divPromises, usersPromise, ticketsPromise, kudosPromise])
+    .then(results => {
+      const divResults  = results.slice(0, divKeys.length);
+      const users       = results[divKeys.length];
+      const tickets     = results[divKeys.length + 1];
+      const kudos       = results[divKeys.length + 2];
 
-    tx.oncomplete = ()=>{
-      _bkpPrune(db, divKey);
-      _bkpUpdateStatusBar();
-    };
-  }).catch(e=>console.warn('BKP snapshot error', e));
+      const divData = {};
+      divResults.forEach(r => { divData[r.key] = r.data; });
+
+      // Count total entries across all divisions for the status bar
+      let totalPeople = 0, totalMonths = 0;
+      divKeys.forEach(k => {
+        totalPeople += (divData[k]?.people||[]).length;
+        totalMonths += Object.keys(divData[k]?.months||{}).length;
+      });
+
+      const snapshot = {
+        id:        `full_${now}`,
+        divKey:    'full', // marks this as a full backup
+        timestamp: now,
+        dateStr,
+        label:     label || 'Auto',
+        type:      'full',
+        people:    totalPeople,
+        months:    totalMonths,
+        data: {
+          _fullBackup: true,
+          _capturedAt: new Date(now).toISOString(),
+          divisions:   divData,
+          users,
+          tickets,
+          kudos
+        }
+      };
+
+      _bkpReady().then(db=>{
+        const tx    = db.transaction(BKP_STORE, 'readwrite');
+        const store = tx.objectStore(BKP_STORE);
+        store.put(snapshot);
+        tx.oncomplete = ()=>{
+          _bkpPrune(db, 'full');
+          _bkpUpdateStatusBar();
+        };
+      }).catch(e=>console.warn('BKP store error', e));
+    }).catch(e=>console.warn('BKP snapshot read error', e));
 }
 
 // ── Prune old snapshots — keep policy ────────────────────────────
 function _bkpPrune(db, divKey){
+  const pruneKey = 'full'; // all snapshots now use 'full' key
   const tx    = db.transaction(BKP_STORE, 'readwrite');
   const store = tx.objectStore(BKP_STORE);
   const idx   = store.index('divKey');
-  const req   = idx.getAll(IDBKeyRange.only(divKey));
+  const req   = idx.getAll(IDBKeyRange.only(pruneKey));
 
   req.onsuccess = e=>{
     const all = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
@@ -22895,11 +23007,10 @@ function _bkpStartAuto(){
   _bkpTimer = setInterval(()=>{ bkpSnapshot('Auto'); }, BKP_INTERVAL);
   // Take one now if it's been >1hr since the last snapshot
   _bkpReady().then(db=>{
-    const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
     const tx     = db.transaction(BKP_STORE, 'readonly');
     const store  = tx.objectStore(BKP_STORE);
     const idx    = store.index('divKey');
-    const req    = idx.getAll(IDBKeyRange.only(divKey));
+    const req    = idx.getAll(IDBKeyRange.only('full'));
     req.onsuccess = e=>{
       const all  = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
       const last = all[0]?.timestamp || 0;
@@ -22937,12 +23048,11 @@ setSyncStatus = function(state){
 
 // ── Update status bar in UI ───────────────────────────────────────
 function _bkpUpdateStatusBar(){
-  const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
   _bkpReady().then(db=>{
     const tx    = db.transaction(BKP_STORE, 'readonly');
     const store = tx.objectStore(BKP_STORE);
     const idx   = store.index('divKey');
-    const req   = idx.getAll(IDBKeyRange.only(divKey));
+    const req   = idx.getAll(IDBKeyRange.only('full'));
     req.onsuccess = e=>{
       const all    = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
       const count  = all.length;
@@ -22957,7 +23067,7 @@ function _bkpUpdateStatusBar(){
       if(cEl) cEl.textContent = count + ' snapshot' + (count===1?'':'s');
       if(tEl) tEl.textContent = last ? new Date(last.timestamp).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
       if(sEl) sEl.textContent = sizeMB + ' MB';
-      if(dEl) dEl.textContent = (DIVISIONS[divKey]?.label||divKey) + ' division';
+      if(dEl) dEl.textContent = 'All 3 divisions + users';
     };
   }).catch(()=>{});
 }
@@ -22968,13 +23078,11 @@ function bkpRenderList(){
   const list = document.getElementById('bkpList');
   if(!list) return;
   list.innerHTML = '<div style="color:var(--text3);font-size:12px;font-family:var(--fm)">Loading snapshots…</div>';
-  const divKey = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
-
   _bkpReady().then(db=>{
     const tx    = db.transaction(BKP_STORE, 'readonly');
     const store = tx.objectStore(BKP_STORE);
     const idx   = store.index('divKey');
-    const req   = idx.getAll(IDBKeyRange.only(divKey));
+    const req   = idx.getAll(IDBKeyRange.only('full'));
 
     req.onsuccess = e=>{
       const all = (e.target.result||[]).sort((a,b)=>b.timestamp - a.timestamp);
@@ -23006,7 +23114,7 @@ function bkpRenderList(){
                 <span style="font-size:10px;font-weight:400;color:var(--text3)">${s.label}</span>
                 ${isLatest ? '<span style="font-size:9px;font-weight:700;background:rgba(45,206,137,.15);color:var(--green);padding:1px 7px;border-radius:6px;letter-spacing:.04em">LATEST</span>' : ''}
               </div>
-              <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px">${s.people} consultants · ${s.months} months · ${sizeKB} KB</div>
+              <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:2px">Full backup · ${s.people} consultants · ${s.months} months · ${sizeKB} KB</div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn btn-s" onclick="bkpExportSnapshot('${s.id}')" style="font-size:11px;padding:4px 10px;border-color:var(--green);color:var(--green)" title="Download this snapshot as JSON">⬇</button>
@@ -23037,20 +23145,45 @@ function bkpSnapshotNow(){
 
 // ── Export current APP data as JSON download ─────────────────────
 function bkpExportNow(){
-  if(typeof APP === 'undefined'){ showToast('No data to export','err'); return; }
-  const divKey  = typeof _currentDivKey !== 'undefined' ? (_currentDivKey||'core') : 'core';
-  const divLabel = (DIVISIONS[divKey]?.label||divKey).replace(/\s+/g,'-');
-  const ts      = new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-');
-  const fname   = `BAU_Dash_${divLabel}_${ts}.json`;
-  const blob    = new Blob([JSON.stringify({
-    _meta: { exported: new Date().toISOString(), divKey, label: DIVISIONS[divKey]?.label||divKey, version: 1 },
-    data:  JSON.parse(JSON.stringify(APP))
-  }, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a   = Object.assign(document.createElement('a'), { href:url, download:fname });
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('⬇ Exported ' + fname);
+  if(typeof _db === 'undefined' || !_db){ showToast('Not connected — cannot export','err'); return; }
+  showToast('⏳ Preparing full export…');
+  const ts    = new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-');
+  const fname = `BAU_FullBackup_${ts}.json`;
+
+  const divKeys = Object.keys(DIVISIONS);
+  const divPromises = divKeys.map(k =>
+    _db.ref(DIVISIONS[k].dbKey).once('value')
+      .then(s => ({ key:k, data: s.val()||{} }))
+      .catch(() => ({ key:k, data:{} }))
+  );
+  Promise.all([
+    ...divPromises,
+    _db.ref('perfDash2_core/cavendishUsers').once('value').then(s=>s.val()||{}).catch(()=>({})),
+    _db.ref('perfDash2_core/tickets').once('value').then(s=>s.val()||{}).catch(()=>({})),
+    _db.ref('perfDash2_core/kudos').once('value').then(s=>s.val()||{}).catch(()=>({}))
+  ]).then(results => {
+    const divData = {};
+    divKeys.forEach((k,i) => { divData[k] = results[i].data; });
+    const users   = results[divKeys.length];
+    const tickets = results[divKeys.length + 1];
+    const kudos   = results[divKeys.length + 2];
+
+    const blob = new Blob([JSON.stringify({
+      _meta: {
+        exported:   new Date().toISOString(),
+        version:    2,
+        fullBackup: true,
+        divisions:  divKeys.map(k=>DIVISIONS[k].label)
+      },
+      data: { _fullBackup:true, divisions:divData, users, tickets, kudos }
+    }, null, 2)], { type:'application/json' });
+
+    const url = URL.createObjectURL(blob);
+    const a   = Object.assign(document.createElement('a'), { href:url, download:fname });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('⬇ Full backup downloaded: ' + fname);
+  }).catch(err => showToast('Export failed: ' + (err?.message||err), 'err'));
 }
 
 // ── Export a specific stored snapshot ────────────────────────────
@@ -23118,12 +23251,46 @@ function bkpImportFile(input){
 }
 
 function _bkpDoRestore(data){
+  if(!_db){ showToast('Not connected to Firebase — cannot restore','err'); return; }
+
+  // Full backup format: { _fullBackup:true, divisions:{...}, users:{...}, tickets:{...}, kudos:{...} }
+  if(data._fullBackup && data.divisions){
+    showToast('⏳ Restoring full backup — all divisions…');
+    const divKeys = Object.keys(data.divisions);
+    const writes  = divKeys.map(k => {
+      const { activeMonth:_am, ...toWrite } = (data.divisions[k]||{});
+      return _db.ref(DIVISIONS[k]?.dbKey || k).set(toWrite);
+    });
+    if(data.users && Object.keys(data.users).length){
+      writes.push(_db.ref('perfDash2_core/cavendishUsers').set(data.users));
+    }
+    if(data.tickets && Object.keys(data.tickets).length){
+      writes.push(_db.ref('perfDash2_core/tickets').set(data.tickets));
+    }
+    if(data.kudos && Object.keys(data.kudos).length){
+      writes.push(_db.ref('perfDash2_core/kudos').set(data.kudos));
+    }
+    Promise.all(writes).then(()=>{
+      // Reload the current division into APP
+      const curDiv = typeof _currentDivKey !== 'undefined' ? _currentDivKey : 'core';
+      APP = { ...(data.divisions[curDiv]||{}), activeMonth: APP.activeMonth || todayKey() };
+      _applyDefaults();
+      setSyncStatus('live');
+      populateAllSelects();
+      renderDashboard();
+      showToast('✅ Full restore complete — all divisions restored');
+      setTimeout(()=>bkpSnapshot('Post-restore'), 1000);
+      setTimeout(bkpRenderList, 1200);
+    }).catch(err=>showToast('Restore failed: ' + (err?.message||err), 'err'));
+    return;
+  }
+
+  // Legacy single-division format
   if(!_dbRef){ showToast('Not connected to Firebase — cannot restore','err'); return; }
   showToast('Restoring…');
   const { activeMonth: _am, ...toWrite } = data;
   _ignoreNextSnapshot++;
   _dbRef.set(toWrite).then(()=>{
-    // Update local APP immediately
     APP = { ...data, activeMonth: APP.activeMonth || todayKey() };
     _applyDefaults();
     _ignoreNextSnapshot = Math.max(0, _ignoreNextSnapshot - 1);
@@ -23131,7 +23298,6 @@ function _bkpDoRestore(data){
     populateAllSelects();
     renderDashboard();
     showToast('✅ Restore complete — data loaded from backup');
-    // Take a "pre-restore" snapshot of what we just wrote
     setTimeout(()=>bkpSnapshot('Post-restore'), 1000);
     setTimeout(bkpRenderList, 1200);
   }).catch(err=>{
