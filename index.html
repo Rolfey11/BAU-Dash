@@ -21803,6 +21803,750 @@ if(typeof buildLiveBonusCard === 'function'){
 })(); // end advice quarterly bonus module
 </script>
 
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// MODULE: ADVICE DIVISION — "WRITTEN" KPI
+// Adds a second revenue metric "Written (£)" alongside Revenue for
+// the Advice division. Written = business written/applications
+// submitted; Revenue = business collected/processed.
+//
+// Touch points:
+//   • Daily Entry page  — Written column + add-on field
+//   • Consultant Submit modal — Written field for Advice
+//   • Manager Direct Entry modal — Written field for Advice
+//   • Consultant Daily tracker — Written MTD in summary + table
+//   • Dashboard KPI row — Written MTD card for Advice
+//   • Team view KPIs — Written MTD card for Advice
+//   • Manager Overview — Written column in consultant table
+// ═══════════════════════════════════════════════════════════════════
+(function(){
+'use strict';
+
+// ── Helpers ───────────────────────────────────────────────────────
+function isAdviceDivision(){
+  return typeof _currentDivKey !== 'undefined' && _currentDivKey === 'advice';
+}
+
+function writtenMTD(mk, personName){
+  if(typeof getEntries !== 'function') return 0;
+  return getEntries(mk)
+    .filter(e => e.name === personName)
+    .reduce((s,e) => s + (e.written || 0), 0);
+}
+
+function teamWrittenMTD(mk){
+  if(typeof getEntries !== 'function') return 0;
+  return getEntries(mk).reduce((s,e) => s + (e.written || 0), 0);
+}
+
+// ── Save written to an existing entry in the entries array ────────
+// Called after the normal save completes so we don't disrupt the
+// existing deal-tracking / Firebase logic.
+function _patchWrittenInEntries(mk, date, writtenMap){
+  if(!Object.keys(writtenMap).length) return;
+  setTimeout(()=>{
+    try{
+      const entries = (typeof getEntries === 'function') ? getEntries(mk) : [];
+      let dirty = false;
+      entries.forEach(e=>{
+        if(e.date !== date) return;
+        const w = writtenMap[e.name];
+        if(w !== undefined && w !== e.written){
+          e.written = w;
+          dirty = true;
+        }
+      });
+      if(!dirty) return;
+      if(typeof setEntries === 'function') setEntries(mk, entries);
+      const role = typeof _currentUser !== 'undefined' ? (_currentUser?.role||'consultant') : 'consultant';
+      if((role==='manager'||role==='master') && typeof _db !== 'undefined' && typeof _currentDivKey !== 'undefined'){
+        const divDbKey = (DIVISIONS[_currentDivKey]||DIVISIONS.core).dbKey;
+        _db.ref(`${divDbKey}/months/${mk}/entries`).set(entries).catch(()=>{});
+      }
+    } catch(e){ console.warn('written patch error', e); }
+  }, 350);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 1. DAILY ENTRY PAGE — add Written column
+// ═══════════════════════════════════════════════════════════════════
+
+// Patch renderEntryPage to update header for Advice
+if(typeof renderEntryPage === 'function'){
+  const _origRenderEntryPage = renderEntryPage;
+  renderEntryPage = function(){
+    _origRenderEntryPage.apply(this, arguments);
+    if(isAdviceDivision()){
+      const head = document.querySelector('.et-head');
+      if(head){
+        head.style.gridTemplateColumns = '130px 1fr 80px 1fr 1fr 80px 1fr';
+        head.innerHTML = `
+          <div class="th">Consultant</div>
+          <div class="th">Today's Revenue</div>
+          <div class="th">Today's NM</div>
+          <div class="th">Today's Written</div>
+          <div class="th" style="color:var(--accent)">+ Add Rev</div>
+          <div class="th" style="color:var(--accent)">+ Add NM</div>
+          <div class="th" style="color:var(--accent)">+ Add Written</div>`;
+      }
+    }
+  };
+}
+
+// Patch buildEntryRows to add Written inputs for Advice
+if(typeof buildEntryRows === 'function'){
+  const _origBuildEntryRows = buildEntryRows;
+  buildEntryRows = function(){
+    _origBuildEntryRows.apply(this, arguments);
+    if(!isAdviceDivision()) return;
+
+    // Update column header widths
+    const head = document.querySelector('.et-head');
+    if(head){
+      head.style.gridTemplateColumns = '130px 1fr 80px 1fr 1fr 80px 1fr';
+      head.innerHTML = `
+        <div class="th">Consultant</div>
+        <div class="th">Today's Revenue</div>
+        <div class="th">Today's NM</div>
+        <div class="th">Today's Written</div>
+        <div class="th" style="color:var(--accent)">+ Add Rev</div>
+        <div class="th" style="color:var(--accent)">+ Add NM</div>
+        <div class="th" style="color:var(--accent)">+ Add Written</div>`;
+    }
+
+    const mk      = typeof APP !== 'undefined' ? APP.activeMonth : '';
+    const date    = document.getElementById('entryDate')?.value || '';
+    const entries = typeof getEntries === 'function' ? getEntries(mk) : [];
+
+    // For each et-row, expand grid and inject written inputs
+    document.querySelectorAll('.et-row').forEach(row=>{
+      row.style.gridTemplateColumns = '130px 1fr 80px 1fr 1fr 80px 1fr';
+
+      // Get the person name from the first cell
+      const nameEl = row.querySelector('.et-name');
+      if(!nameEl) return;
+      const pName = nameEl.textContent.trim();
+      const ex    = entries.find(e=>e.date===date && e.name===pName);
+      const todayWritten = ex ? (ex.written||0) : 0;
+
+      // Check we haven't already added the written cell
+      if(document.getElementById('written_'+pName)) return;
+
+      // Written base cell (after NM cell, which is index 2)
+      // Insert after NM input (3rd child)
+      const writtenBaseCell = document.createElement('div');
+      writtenBaseCell.className = 'inp-wrap';
+      writtenBaseCell.innerHTML = `
+        <span class="inp-pre">£</span>
+        <input type="number" class="inp-pl" id="written_${pName}"
+          placeholder="0.00" step="0.01" min="0"
+          value="${todayWritten||''}"
+          style="background:var(--surface2);">`;
+
+      // Add-on written cell (at end)
+      const writtenAddCell = document.createElement('div');
+      writtenAddCell.className = 'inp-wrap';
+      writtenAddCell.innerHTML = `
+        <span class="inp-pre" style="color:var(--purple)">+£</span>
+        <input type="number" class="inp-pl" id="addwritten_${pName}"
+          placeholder="0.00" step="0.01" min="0"
+          style="background:var(--purple-bg);border-color:var(--purple);color:var(--purple);">`;
+
+      // Insert after the 3rd child (index 2 = NM cell)
+      const children = [...row.children];
+      if(children.length >= 3){
+        // Insert after NM cell (index 2)
+        row.insertBefore(writtenBaseCell, children[3]);
+        // Append add-on written at end
+        row.appendChild(writtenAddCell);
+      }
+    });
+  };
+}
+
+// Patch saveAllEntries to persist Written
+if(typeof saveAllEntries === 'function'){
+  const _origSaveAllEntries = saveAllEntries;
+  saveAllEntries = function(){
+    if(!isAdviceDivision()){
+      return _origSaveAllEntries.apply(this, arguments);
+    }
+
+    // Collect written values BEFORE the save (DOM will be re-rendered after)
+    const mk   = typeof APP !== 'undefined' ? APP.activeMonth : '';
+    const date = document.getElementById('entryDate')?.value || '';
+    const writtenMap = {};
+    if(typeof APP !== 'undefined' && mk){
+      const active = APP.people.filter(p=> typeof personTargetForMonth === 'function' ? personTargetForMonth(p,mk)>0 : true);
+      active.forEach(p=>{
+        const baseWritten = parseFloat(document.getElementById('written_'+p.name)?.value)||0;
+        const addWritten  = parseFloat(document.getElementById('addwritten_'+p.name)?.value)||0;
+        const total = parseFloat((baseWritten + addWritten).toFixed(2));
+        if(total >= 0) writtenMap[p.name] = total; // even 0 is meaningful (clears it)
+      });
+    }
+
+    // Run original save
+    const ret = _origSaveAllEntries.apply(this, arguments);
+
+    // Patch written into entries after save completes
+    if(date && mk && Object.keys(writtenMap).length){
+      _patchWrittenInEntries(mk, date, writtenMap);
+    }
+    return ret;
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 2. CONSULTANT SUBMIT MODAL — add Written field for Advice
+// ═══════════════════════════════════════════════════════════════════
+
+if(typeof openDailySubmit === 'function'){
+  const _origOpenDailySubmit = openDailySubmit;
+  openDailySubmit = function(date){
+    _origOpenDailySubmit.apply(this, arguments);
+    if(!isAdviceDivision()) return;
+
+    // Inject Written field into the modal body after Revenue/NM row
+    const body = document.getElementById('reviewModalBody');
+    if(!body) return;
+    const revNmRow = body.querySelector('[style*="grid-template-columns"]');
+    if(!revNmRow) return;
+
+    const writtenDiv = document.createElement('div');
+    writtenDiv.style.cssText = 'margin-bottom:14px;';
+    writtenDiv.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+        <div>
+          <div class="field-lbl" style="color:var(--purple)">Written (£) <span style="font-size:9px;font-weight:400;color:var(--text3)">— business written this date</span></div>
+          <div style="position:relative;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--purple);font-size:13px;font-family:var(--fm);pointer-events:none;">£</span>
+            <input type="number" id="submitWritten" placeholder="0.00" step="0.01" min="0"
+              style="width:100%;padding:10px 12px 10px 26px;background:var(--purple-bg);border:1px solid var(--purple);border-radius:8px;font-size:14px;font-family:var(--fm);color:var(--text);outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+      </div>`;
+    revNmRow.parentNode.insertBefore(writtenDiv, revNmRow.nextSibling);
+  };
+}
+
+if(typeof submitDailyFigures === 'function'){
+  const _origSubmitDailyFigures = submitDailyFigures;
+  submitDailyFigures = function(){
+    if(!isAdviceDivision()){
+      return _origSubmitDailyFigures.apply(this, arguments);
+    }
+    // Capture written before original closes the modal
+    const written = parseFloat(document.getElementById('submitWritten')?.value)||0;
+
+    // Patch: override the pending entry creation to include written
+    const _origPendRef = typeof _pendingRef === 'function' ? _pendingRef() : null;
+    if(_origPendRef){
+      // We need to add `written` to the pending entry saved to Firebase.
+      // Strategy: let original run, then immediately update the pending entry
+      const date    = document.getElementById('submitDate')?.value || '';
+      const myName  = typeof _currentUser !== 'undefined' ? (_currentUser?.name||'') : '';
+      _origSubmitDailyFigures.apply(this, arguments);
+
+      if(written > 0 && date && myName){
+        // Find the just-submitted pending entry and add written
+        setTimeout(()=>{
+          try{
+            const ref = typeof _pendingRef === 'function' ? _pendingRef() : null;
+            if(!ref) return;
+            ref.once('value').then(snap=>{
+              const all  = snap.val() || {};
+              const pending = Object.entries(all).find(([,e])=>
+                e.consultantName===myName && e.date===date && e.status==='pending'
+              );
+              if(pending){
+                ref.child(pending[0]+'/written').set(written).catch(()=>{});
+              }
+            }).catch(()=>{});
+          } catch(e){ console.warn('written pending patch', e); }
+        }, 500);
+      }
+    } else {
+      _origSubmitDailyFigures.apply(this, arguments);
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 3. MANAGER DIRECT ENTRY MODAL — add Written field
+// ═══════════════════════════════════════════════════════════════════
+
+if(typeof openManagerDirectEntry === 'function'){
+  const _origOpenMgrDirect = openManagerDirectEntry;
+  openManagerDirectEntry = function(date, consultantName, existingRev, existingNm){
+    _origOpenMgrDirect.apply(this, arguments);
+    if(!isAdviceDivision()) return;
+
+    // Read existing written for this date/person
+    const mk = typeof APP !== 'undefined' ? APP.activeMonth : (date||'').slice(0,7);
+    const entries = typeof getEntries === 'function' ? getEntries(mk) : [];
+    const ex = entries.find(e=>e.date===date&&e.name===consultantName);
+    const existingWritten = ex?.written || 0;
+
+    const body = document.getElementById('reviewModalBody');
+    if(!body) return;
+
+    // Find the Rev/NM grid and inject Written after it
+    const revNmGrid = body.querySelector('[style*="grid-template-columns"]');
+    if(!revNmGrid) return;
+
+    const writtenDiv = document.createElement('div');
+    writtenDiv.style.marginBottom = '14px';
+    writtenDiv.innerHTML = `
+      <div class="field-lbl" style="color:var(--purple)">Written (£) <span style="font-size:9px;font-weight:400;color:var(--text3)">— business written</span></div>
+      <div style="position:relative;">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--purple);font-family:var(--fm);font-size:13px;pointer-events:none;">£</span>
+        <input type="number" id="mgr_written" placeholder="0.00" step="0.01" min="0"
+          value="${existingWritten||''}"
+          style="width:100%;padding:10px 12px 10px 26px;background:var(--purple-bg);border:1px solid var(--purple);border-radius:8px;font-size:14px;font-family:var(--fm);color:var(--text);outline:none;box-sizing:border-box;">
+      </div>`;
+    revNmGrid.parentNode.insertBefore(writtenDiv, revNmGrid.nextSibling);
+  };
+}
+
+if(typeof saveManagerDirectEntry === 'function'){
+  const _origSaveMgrDirect = saveManagerDirectEntry;
+  saveManagerDirectEntry = function(){
+    if(!isAdviceDivision()){
+      return _origSaveMgrDirect.apply(this, arguments);
+    }
+    // Capture written before modal closes
+    const writtenVal = parseFloat(document.getElementById('mgr_written')?.value)||0;
+    const date   = document.getElementById('mgr_date')?.value;
+    const name   = document.getElementById('mgr_consultant')?.value||'';
+    const mk     = date ? date.slice(0,7) : (typeof APP !== 'undefined' ? APP.activeMonth : '');
+
+    // Run original save
+    _origSaveMgrDirect.apply(this, arguments);
+
+    // Patch written after save
+    if(date && mk && name !== undefined){
+      const map = {}; map[name] = writtenVal;
+      _patchWrittenInEntries(mk, date, map);
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 4. CONSULTANT DAILY TRACKER — Written MTD summary + table column
+// ═══════════════════════════════════════════════════════════════════
+
+if(typeof renderConsultantDaily === 'function'){
+  const _origRenderCD = renderConsultantDaily;
+  renderConsultantDaily = function(){
+    const ret = _origRenderCD.apply(this, arguments);
+    if(!isAdviceDivision()) return ret;
+    setTimeout(()=>{
+      try{ _injectWrittenIntoConsultantDaily(); } catch(e){ console.warn('written CD inject', e); }
+    }, 80);
+    return ret;
+  };
+}
+
+function _injectWrittenIntoConsultantDaily(){
+  const mk     = document.getElementById('cdMonth')?.value || (typeof APP !== 'undefined' ? APP.activeMonth : '');
+  const role   = typeof _currentUser !== 'undefined' ? (_currentUser?.role||'consultant') : 'consultant';
+  let myName;
+  if((role==='manager'||role==='master') && document.getElementById('cdConsultantSel')?.value){
+    myName = document.getElementById('cdConsultantSel').value;
+  } else {
+    myName = typeof _currentUser !== 'undefined' ? (_currentUser?.name||'') : '';
+  }
+  if(!myName || !mk) return;
+
+  const wMTD = Math.round(writtenMTD(mk, myName));
+
+  // ── Inject Written MTD into the right summary panel ──────────────
+  const summaryPanel = document.querySelector('#cdContent .set-card, #cdContent [style*="Monthly Summary"], #cdContent [style*="gradient(135deg,#1a4a1a"]');
+  // Find the summary card by its distinctive header
+  const allCards = document.querySelectorAll('#cdContent div');
+  let summaryCard = null;
+  for(const card of allCards){
+    if(card.textContent.includes('Monthly Summary') && card.querySelectorAll('div').length > 3){
+      summaryCard = card;
+      break;
+    }
+  }
+
+  // Inject Written MTD KPI card next to revenue - find "Current Risk (MTD)" row
+  if(summaryCard){
+    // Check if already injected
+    if(!summaryCard.querySelector('[data-written-kpi]')){
+      const rows = summaryCard.querySelectorAll('div[style*="justify-content:space-between"]');
+      for(const row of rows){
+        if(row.textContent.includes('Current Risk')){
+          const writtenRow = document.createElement('div');
+          writtenRow.setAttribute('data-written-kpi','1');
+          writtenRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:12px;font-family:var(--fm);background:rgba(167,139,250,0.06);border-left:2px solid var(--purple);';
+          writtenRow.innerHTML = `
+            <span style="color:var(--text3)">Written (MTD)</span>
+            <span style="font-weight:700;color:var(--purple)">£${wMTD.toLocaleString()}</span>`;
+          row.parentNode.insertBefore(writtenRow, row.nextSibling);
+          break;
+        }
+      }
+    } else {
+      // Update value if already exists
+      const wKpi = summaryCard.querySelector('[data-written-kpi]');
+      if(wKpi){
+        const span = wKpi.querySelector('span:last-child');
+        if(span) span.textContent = '£'+wMTD.toLocaleString();
+      }
+    }
+  }
+
+  // ── Add Written column to the daily table ────────────────────────
+  const dailyTable = document.querySelector('#cdContent table');
+  if(!dailyTable) return;
+
+  // Check if already added
+  if(dailyTable.querySelector('[data-written-col]')) {
+    // Update values
+    _refreshWrittenColValues(mk, myName, dailyTable);
+    return;
+  }
+
+  // Add "Written" header after Revenue header
+  const thead = dailyTable.querySelector('thead tr');
+  if(thead){
+    const revTh = thead.cells[1]; // Revenue column
+    const writtenTh = document.createElement('th');
+    writtenTh.setAttribute('data-written-col','1');
+    writtenTh.style.cssText = 'padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:var(--purple);font-family:var(--fm);letter-spacing:.07em;text-transform:uppercase;';
+    writtenTh.textContent = 'Written';
+    revTh.parentNode.insertBefore(writtenTh, revTh.nextSibling);
+  }
+
+  // Add Written tfoot cell
+  const tfoot = dailyTable.querySelector('tfoot tr');
+  if(tfoot){
+    const revTd = tfoot.cells[1];
+    const writtenTd = document.createElement('td');
+    writtenTd.setAttribute('data-written-col','1');
+    writtenTd.style.cssText = 'padding:9px 12px;text-align:right;font-weight:700;font-family:var(--fm);color:var(--purple);';
+    writtenTd.textContent = '£'+wMTD.toLocaleString();
+    revTd.parentNode.insertBefore(writtenTd, revTd.nextSibling);
+  }
+
+  // Add Written cells to each body row
+  const entries = typeof getEntries === 'function' ? getEntries(mk) : [];
+  const mine    = entries.filter(e=>e.name===myName);
+  const tbody   = dailyTable.querySelector('tbody');
+  if(!tbody) return;
+
+  // Build a date→written map
+  const writtenByDate = {};
+  mine.forEach(e=>{ writtenByDate[e.date] = e.written||0; });
+
+  // Iterate each row — skip deal-breakdown rows (they have colspan)
+  [...tbody.rows].forEach(row=>{
+    if(row.querySelector('[colspan]') && row.cells.length < 4) return; // deal row
+    const dateTd = row.cells[0];
+    if(!dateTd) return;
+
+    // Extract date from the row's data attribute or text
+    // Find the date in the text (format "Mon 1", "Tue 2" etc.)
+    // We determine date from the month + day text
+    const [y,m] = mk.split('-').map(Number);
+    const dayMatch = dateTd.textContent.match(/(\d+)/);
+    if(!dayMatch) return;
+    const d  = parseInt(dayMatch[1]);
+    const ds = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const w  = writtenByDate[ds] || 0;
+
+    const revTd = row.cells[1];
+    if(!revTd) return;
+
+    const writtenTd = document.createElement('td');
+    writtenTd.setAttribute('data-written-col','1');
+    writtenTd.setAttribute('data-ds', ds);
+    writtenTd.style.cssText = 'padding:8px 12px;text-align:right;font-family:var(--fm);font-size:12px;';
+    writtenTd.innerHTML = w > 0
+      ? `<span style="color:var(--purple);font-weight:700;">£${parseFloat(w).toLocaleString()}</span>`
+      : `<span style="color:var(--text3);"></span>`;
+    revTd.parentNode.insertBefore(writtenTd, revTd.nextSibling);
+  });
+}
+
+function _refreshWrittenColValues(mk, myName, table){
+  const entries = typeof getEntries === 'function' ? getEntries(mk) : [];
+  const mine    = entries.filter(e=>e.name===myName);
+  const writtenByDate = {};
+  mine.forEach(e=>{ writtenByDate[e.date] = e.written||0; });
+
+  table.querySelectorAll('[data-written-col][data-ds]').forEach(td=>{
+    const ds = td.dataset.ds;
+    const w  = writtenByDate[ds]||0;
+    td.innerHTML = w>0
+      ? `<span style="color:var(--purple);font-weight:700;">£${parseFloat(w).toLocaleString()}</span>`
+      : `<span style="color:var(--text3);"></span>`;
+  });
+
+  // Update tfoot
+  const wMTD = Math.round(mine.reduce((s,e)=>s+(e.written||0),0));
+  const footTd = table.querySelector('tfoot [data-written-col]');
+  if(footTd) footTd.textContent = '£'+wMTD.toLocaleString();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. DASHBOARD — Written MTD KPI card for Advice
+// ═══════════════════════════════════════════════════════════════════
+
+if(typeof renderDashboard === 'function'){
+  const _origRenderDashboard = renderDashboard;
+  renderDashboard = function(){
+    const ret = _origRenderDashboard.apply(this, arguments);
+    if(!isAdviceDivision()) return ret;
+    setTimeout(()=>{
+      try{ _injectWrittenKpiDash(); } catch(e){ console.warn('written dash inject', e); }
+    }, 60);
+    return ret;
+  };
+}
+
+function _injectWrittenKpiDash(){
+  const mk   = typeof APP !== 'undefined' ? APP.activeMonth : '';
+  if(!mk) return;
+  const wTotal = Math.round(teamWrittenMTD(mk));
+  const kpiRow = document.getElementById('kpiRow');
+  if(!kpiRow) return;
+  if(kpiRow.querySelector('[data-written-kpi-dash]')) {
+    const el = kpiRow.querySelector('[data-written-kpi-dash]');
+    const val = el.querySelector('.kpi-val');
+    if(val) val.textContent = '£'+wTotal.toLocaleString();
+    return;
+  }
+  const card = document.createElement('div');
+  card.className = 'kpi-card';
+  card.setAttribute('data-written-kpi-dash','1');
+  card.innerHTML = `
+    <div class="kpi-label">Written MTD</div>
+    <div class="kpi-val" style="color:var(--purple)">£${wTotal.toLocaleString()}</div>
+    <div class="kpi-sub">Advice — business written</div>`;
+  // Insert after Team Revenue MTD (first card)
+  const firstCard = kpiRow.children[0];
+  if(firstCard) firstCard.parentNode.insertBefore(card, firstCard.nextSibling);
+  else kpiRow.appendChild(card);
+  // Expand grid
+  const current = parseInt(kpiRow.style.gridTemplateColumns?.match(/repeat\((\d+)/)?.[1]||'7');
+  kpiRow.style.gridTemplateColumns = `repeat(${current+1},1fr)`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 6. TEAM VIEW — Written MTD KPI + daily breakdown column for Advice
+// ═══════════════════════════════════════════════════════════════════
+
+if(typeof renderTeamDashboard === 'function'){
+  const _origRenderTeamDash = renderTeamDashboard;
+  renderTeamDashboard = function(container, managerName){
+    const ret = _origRenderTeamDash.apply(this, arguments);
+    if(!isAdviceDivision()) return ret;
+    setTimeout(()=>{
+      try{ _injectWrittenIntoTeamDash(container, managerName); } catch(e){ console.warn('written team inject', e); }
+    }, 80);
+    return ret;
+  };
+}
+
+function _injectWrittenIntoTeamDash(container, managerName){
+  const mk      = document.getElementById('teamsMonth')?.value || (typeof APP !== 'undefined' ? APP.activeMonth : '');
+  if(!mk) return;
+  const members = typeof _teamMembers === 'function' ? _teamMembers(managerName) : [];
+
+  // Sum Written for all team members
+  const entries  = typeof getEntries === 'function' ? getEntries(mk) : [];
+  const wTotal   = Math.round(entries.filter(e=>members.includes(e.name)).reduce((s,e)=>s+(e.written||0),0));
+
+  // Inject KPI card into the kpi-row (after Team Revenue MTD)
+  const kpiRow = container.querySelector('.kpi-row');
+  if(kpiRow && !kpiRow.querySelector('[data-written-kpi-team]')){
+    const card = document.createElement('div');
+    card.className = 'kpi-card';
+    card.setAttribute('data-written-kpi-team','1');
+    card.innerHTML = `
+      <div class="kpi-label">Written MTD</div>
+      <div class="kpi-val" style="color:var(--purple)">£${wTotal.toLocaleString()}</div>
+      <div class="kpi-sub">business written this month</div>`;
+    const firstCard = kpiRow.children[0];
+    if(firstCard) firstCard.parentNode.insertBefore(card, firstCard.nextSibling);
+    else kpiRow.appendChild(card);
+    // Expand grid
+    const cur = parseInt(kpiRow.style.gridTemplateColumns?.match(/repeat\((\d+)/)?.[1]||'7');
+    kpiRow.style.gridTemplateColumns = `repeat(${cur+1},1fr)`;
+  }
+
+  // ── Add Written column to the daily breakdown table ──────────────
+  const dailyTables = container.querySelectorAll('table');
+  dailyTables.forEach(table=>{
+    if(table.querySelector('[data-written-team-col]')) return;
+
+    // Build date→written map for all team members
+    const writtenByDate = {};
+    entries.filter(e=>members.includes(e.name)).forEach(e=>{
+      writtenByDate[e.date] = (writtenByDate[e.date]||0) + (e.written||0);
+    });
+
+    // Add header
+    const thead = table.querySelector('thead tr');
+    if(thead && thead.cells.length > 1){
+      const th = document.createElement('th');
+      th.setAttribute('data-written-team-col','1');
+      th.style.cssText = 'padding:9px 14px;background:var(--surface2);color:var(--purple);font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;font-family:var(--fm);white-space:nowrap;text-align:right;border-bottom:1px solid var(--border);';
+      th.textContent = 'Written';
+      thead.cells[1].parentNode.insertBefore(th, thead.cells[2]); // After Rev Total
+    }
+
+    // Add body cells
+    const tbody = table.querySelector('tbody');
+    if(tbody){
+      [...tbody.rows].forEach(row=>{
+        if(!row.cells[0]) return;
+        const dateText = row.cells[0]?.textContent?.trim();
+        // Parse the date from "Mon 1 Jan" format
+        const td = document.createElement('td');
+        td.setAttribute('data-written-team-col','1');
+
+        // Find matching date in writtenByDate
+        let matchedW = 0;
+        for(const [ds, w] of Object.entries(writtenByDate)){
+          const [y,m,d] = ds.split('-').map(Number);
+          const dayStr = new Date(y,m-1,d).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+          if(dateText.includes(String(d)) && dateText.toLowerCase().includes(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][m-1])){
+            matchedW = w;
+            break;
+          }
+        }
+
+        td.style.cssText = 'padding:8px 14px;text-align:right;font-family:var(--fm);font-size:12px;';
+        td.innerHTML = matchedW>0
+          ? `<span style="color:var(--purple);font-weight:600">£${Math.round(matchedW).toLocaleString()}</span>`
+          : `<span style="color:var(--text3)">—</span>`;
+
+        if(row.cells[1]) row.cells[1].parentNode.insertBefore(td, row.cells[2]);
+        else row.appendChild(td);
+      });
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 7. MANAGER OVERVIEW — Written column for Advice consultants
+// ═══════════════════════════════════════════════════════════════════
+
+if(typeof renderManagerOverview === 'function'){
+  const _origRenderMO = renderManagerOverview;
+  renderManagerOverview = function(){
+    const ret = _origRenderMO.apply(this, arguments);
+    setTimeout(()=>{
+      try{ _injectWrittenIntoManagerOverview(); } catch(e){ console.warn('written MO inject', e); }
+    }, 150);
+    return ret;
+  };
+}
+
+function _injectWrittenIntoManagerOverview(){
+  const mk = document.getElementById('moMonth')?.value || (typeof APP !== 'undefined' ? APP.activeMonth : '');
+  if(!mk) return;
+
+  // Find all tables in manager overview
+  const moContent = document.getElementById('moContent');
+  if(!moContent) return;
+
+  const tables = moContent.querySelectorAll('table');
+  tables.forEach(table=>{
+    if(table.querySelector('[data-written-mo-col]')) return;
+
+    // Check if this table has a "Division" column (the consultant breakdown table)
+    const thead = table.querySelector('thead tr');
+    if(!thead) return;
+    const headers = [...thead.cells].map(c=>c.textContent.trim().toLowerCase());
+    const hasDivision = headers.some(h=>h.includes('division'));
+    if(!hasDivision) return; // Not the consultant table
+
+    // Find the "Revenue MTD" column index to insert Written after
+    const revIdx = headers.findIndex(h=>h.includes('revenue') || h.includes('rev mtd') || h.includes('£'));
+    if(revIdx < 0) return;
+
+    // Add header
+    const writtenTh = document.createElement('th');
+    writtenTh.setAttribute('data-written-mo-col','1');
+    writtenTh.style.cssText = 'padding:10px 14px;background:var(--surface2);color:var(--purple);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-family:var(--fm);white-space:nowrap;border-bottom:1px solid var(--border);text-align:right;';
+    writtenTh.textContent = 'Written MTD';
+    const insertBeforeTh = thead.cells[revIdx + 1];
+    if(insertBeforeTh) thead.insertBefore(writtenTh, insertBeforeTh);
+    else thead.appendChild(writtenTh);
+
+    // Add data cells
+    const tbody = table.querySelector('tbody');
+    if(!tbody) return;
+    [...tbody.rows].forEach(row=>{
+      // Get person name from name column (index 1, rank is 0)
+      const nameCell = row.cells[1];
+      if(!nameCell) return;
+
+      // Extract name text (strip ✓ checkmark)
+      const rawName = nameCell.textContent.replace(/✓/g,'').trim().split('\n')[0].trim();
+
+      // Get division from division cell (index 2)
+      const divCell = row.cells[2];
+      const isAdvice = divCell && divCell.textContent.toLowerCase().includes('advice');
+
+      const wTd = document.createElement('td');
+      wTd.setAttribute('data-written-mo-col','1');
+      wTd.style.cssText = 'padding:10px 14px;text-align:right;font-family:var(--fm);font-size:12px;';
+
+      if(isAdvice){
+        // We need the Advice division's entries for this person
+        // Try from global state first, fallback to 0
+        let wVal = 0;
+        if(typeof _moLastData !== 'undefined' && _moLastData?.results){
+          const advResult = _moLastData.results.find(r=>r.key==='advice');
+          if(advResult){
+            const advEntries = (advResult.data.months?.[mk]?.entries)||[];
+            const normArr = (d) => !d ? [] : Array.isArray(d) ? d : Object.values(d).filter(Boolean);
+            wVal = Math.round(normArr(advEntries).filter(e=>e.name===rawName).reduce((s,e)=>s+(e.written||0),0));
+          }
+        }
+        wTd.innerHTML = wVal > 0
+          ? `<span style="color:var(--purple);font-weight:700">£${wVal.toLocaleString()}</span>`
+          : `<span style="color:var(--text3)">—</span>`;
+      } else {
+        wTd.innerHTML = `<span style="color:var(--text3);font-size:10px">N/A</span>`;
+      }
+
+      const insertBeforeTd = row.cells[revIdx + 1];
+      if(insertBeforeTd) row.insertBefore(wTd, insertBeforeTd);
+      else row.appendChild(wTd);
+    });
+  });
+}
+
+// ── Re-run injections when switching to Advice division ───────────
+if(typeof selectDivision === 'function'){
+  const _origSelectDiv = selectDivision;
+  selectDivision = function(divKey){
+    const ret = _origSelectDiv.apply(this, arguments);
+    if(divKey === 'advice'){
+      setTimeout(()=>{
+        try{
+          if(document.getElementById('page-dashboard')?.classList.contains('active')) _injectWrittenKpiDash();
+          if(document.getElementById('page-consultantdaily')?.classList.contains('active')) _injectWrittenIntoConsultantDaily();
+          if(document.getElementById('page-manageroverview')?.classList.contains('active')) _injectWrittenIntoManagerOverview();
+        } catch(e){}
+      }, 300);
+    }
+    return ret;
+  };
+}
+
+})(); // end advice written KPI module
+</script>
+
 </body>
 </html>
 
