@@ -16138,9 +16138,48 @@ function deleteUser(uid){
   var name = user.name;
   var ref = _usersDbRef();
   if(!ref){ showToast('Not connected','err'); return; }
-  ref.child(uid).remove()
-    .then(function(){ delete _allUsers[uid]; _renderUsersTable(); showToast(name+' removed'); })
-    .catch(function(){ showToast('Delete failed — check Firebase permissions','err'); });
+
+  // Build updates: remove user account + remove from every division's people array
+  // (so _syncConsultantsToUsers won't re-create them on next render)
+  var updates = {};
+  updates['perfDash2_core/cavendishUsers/' + uid] = null;
+
+  var divKeys = Object.keys(DIVISIONS);
+  var pendingReads = divKeys.length;
+
+  function applyUpdates(){
+    _db.ref().update(updates)
+      .then(function(){
+        delete _allUsers[uid];
+        // Also strip from local APP.people if they're in the current division
+        if(typeof APP !== 'undefined' && Array.isArray(APP.people)){
+          APP.people = APP.people.filter(function(p){ return p.name !== name; });
+        }
+        _renderUsersTable();
+        showToast(name + ' removed');
+      })
+      .catch(function(){ showToast('Delete failed — check Firebase permissions','err'); });
+  }
+
+  // Read each division's people array, find any matching this name, queue removal
+  divKeys.forEach(function(key){
+    var dbKey = DIVISIONS[key].dbKey;
+    _db.ref(dbKey + '/people').once('value').then(function(snap){
+      var people = snap.val() || [];
+      if(Array.isArray(people)){
+        people.forEach(function(p, idx){
+          if(p && p.name === name){
+            updates[dbKey + '/people/' + idx] = null;
+          }
+        });
+      }
+      pendingReads--;
+      if(pendingReads === 0) applyUpdates();
+    }).catch(function(){
+      pendingReads--;
+      if(pendingReads === 0) applyUpdates();
+    });
+  });
 }
 
 function editUserName(uid){
