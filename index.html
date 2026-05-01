@@ -15801,6 +15801,19 @@ function _applyDefaults(){
   if(!APP.personRROverrides) APP.personRROverrides = {};
   if(!APP.personNmRROverrides) APP.personNmRROverrides = {};
   if(!APP.people)        APP.people = [];
+  // Safety net: Firebase silently converts arrays into sparse objects when
+  // indices are nulled. If we see APP.people as an object (with numeric
+  // keys), coerce it back into a compacted array so .map/.filter/.forEach
+  // still work everywhere.
+  if(APP.people && !Array.isArray(APP.people) && typeof APP.people === 'object'){
+    APP.people = Object.keys(APP.people)
+      .sort(function(a,b){ return parseInt(a,10) - parseInt(b,10); })
+      .map(function(k){ return APP.people[k]; })
+      .filter(function(p){ return !!p; });
+  } else if(Array.isArray(APP.people)){
+    // Compact any holes from the old buggy delete (sparse array = `[a, , c]`)
+    APP.people = APP.people.filter(function(p){ return !!p; });
+  }
   if(!APP.photos)        APP.photos = {};
 }
 
@@ -16139,43 +16152,61 @@ function deleteUser(uid){
   var ref = _usersDbRef();
   if(!ref){ showToast('Not connected','err'); return; }
 
-  // Build updates: remove user account + remove from every division's people array
-  // (so _syncConsultantsToUsers won't re-create them on next render)
-  var updates = {};
-  updates['perfDash2_core/cavendishUsers/' + uid] = null;
-
   var divKeys = Object.keys(DIVISIONS);
   var pendingReads = divKeys.length;
+  // Map of dbKey -> new compacted people array (only set if changed)
+  var peopleUpdates = {};
 
   function applyUpdates(){
+    // Build a multi-path update: nuke the user + overwrite each affected
+    // division's people array with a compacted (no-holes) copy. Writing the
+    // whole array back keeps Firebase storing it as an array, not an object.
+    var updates = {};
+    updates['perfDash2_core/cavendishUsers/' + uid] = null;
+    Object.keys(peopleUpdates).forEach(function(dbKey){
+      updates[dbKey + '/people'] = peopleUpdates[dbKey];
+    });
+
     _db.ref().update(updates)
       .then(function(){
         delete _allUsers[uid];
-        // Also strip from local APP.people if they're in the current division
+        // Strip from local APP.people too if present
         if(typeof APP !== 'undefined' && Array.isArray(APP.people)){
-          APP.people = APP.people.filter(function(p){ return p.name !== name; });
+          APP.people = APP.people.filter(function(p){ return p && p.name !== name; });
         }
         _renderUsersTable();
         showToast(name + ' removed');
       })
-      .catch(function(){ showToast('Delete failed — check Firebase permissions','err'); });
+      .catch(function(err){
+        console.warn('deleteUser failed', err);
+        showToast('Delete failed — check Firebase permissions','err');
+      });
   }
 
-  // Read each division's people array, find any matching this name, queue removal
   divKeys.forEach(function(key){
     var dbKey = DIVISIONS[key].dbKey;
     _db.ref(dbKey + '/people').once('value').then(function(snap){
-      var people = snap.val() || [];
-      if(Array.isArray(people)){
-        people.forEach(function(p, idx){
-          if(p && p.name === name){
-            updates[dbKey + '/people/' + idx] = null;
-          }
-        });
+      var raw = snap.val();
+      // Coerce object-form back to array (handles legacy data already
+      // corrupted by index-nulling) so we can compact properly.
+      var people = [];
+      if(Array.isArray(raw)){
+        people = raw.filter(function(p){ return !!p; });
+      } else if(raw && typeof raw === 'object'){
+        people = Object.keys(raw)
+          .sort(function(a,b){ return parseInt(a,10) - parseInt(b,10); })
+          .map(function(k){ return raw[k]; })
+          .filter(function(p){ return !!p; });
+      }
+      var filtered = people.filter(function(p){ return p && p.name !== name; });
+      if(filtered.length !== people.length || !Array.isArray(raw)){
+        // Either we removed someone, or the stored shape was wrong — write back
+        peopleUpdates[dbKey] = filtered;
       }
       pendingReads--;
       if(pendingReads === 0) applyUpdates();
-    }).catch(function(){
+    }).catch(function(err){
+      console.warn('deleteUser read failed for', dbKey, err);
       pendingReads--;
       if(pendingReads === 0) applyUpdates();
     });
