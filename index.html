@@ -1876,6 +1876,20 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
       </button>
     </div>
 
+    <!-- COACHING -->
+    <button class="sidebar-section-btn" id="sbSec-coaching" onclick="toggleSidebarSection('coaching')">
+      <span>🎯 Coaching</span>
+      <span class="sb-chevron">▶</span>
+    </button>
+    <div class="sidebar-items" id="sbItems-coaching">
+      <button class="sidebar-item" id="sbItem-coaching121s" onclick="sidebarNav('coaching121s')">
+        <span class="sidebar-item-icon">👥</span>1:1's
+      </button>
+      <button class="sidebar-item" id="sbItem-coachingfeedback" onclick="sidebarNav('coachingfeedback')">
+        <span class="sidebar-item-icon">📞</span>Call Feedback
+      </button>
+    </div>
+
     <!-- HOLIDAY -->
     <button class="sidebar-section-btn" id="sbSec-holiday" onclick="toggleSidebarSection('holiday')">
       <span>🏖 Holiday</span>
@@ -1966,6 +1980,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94
       <button class="nav-tab consultant-only-tab" id="holidayNavTab" onclick="showPage('holiday')">Holiday</button>
       <button class="nav-tab consultant-only-tab" onclick="showPage('consultantdaily')">📅 My Daily</button>
       <button class="nav-tab consultant-only-tab" onclick="showPage('calloutcomes')">📊 Call Outcomes</button>
+      <button class="nav-tab consultant-only-tab" onclick="showPage('myfeedback')">📞 Call Feedback</button>
       <button class="nav-tab consultant-only-tab" onclick="showPage('bonuscalc')">💰 Bonus Calc</button>
       <button class="nav-tab" onclick="showPage('settings')">Settings</button>
     </div>
@@ -4082,9 +4097,9 @@ const ROLE_ACCESS = {
   manager:    ['dashboard','biz','teams','summary','entry','monthlysummary','leaderboard',
                'history','daybyday','holiday','settings','manageroverview','staffperf','calloutcomes',
                'consultantdaily','remedialmanager','bonuscalc','dailysend','compliance',
-               'globalsearch','weeklystats','insights'],
+               'globalsearch','weeklystats','insights','coaching121s','coachingfeedback'],
   compliance: ['compliance','calloutcomes','remedialmanager'],
-  consultant: ['consultantdaily','teams','calloutcomes','holiday','bonuscalc']
+  consultant: ['consultantdaily','teams','calloutcomes','holiday','bonuscalc','myfeedback']
 };
 const ROLE_LABELS = { master:'Master', smt:'SMT', manager:'Manager', compliance:'Compliance', consultant:'Consultant' };
 const ROLE_COLORS = { master:'#e879f9', smt:'#f472b6', manager:'#5e9cf5', compliance:'#2dce89', consultant:'#fbb83a' };
@@ -4128,6 +4143,8 @@ function applyRoleVisibility(){
     'sbItem-holiday':         'holiday',
     'sbItem-globalsearch':    'globalsearch',
     'sbItem-weeklystats':     'weeklystats',
+    'sbItem-coaching121s':    'coaching121s',
+    'sbItem-coachingfeedback':'coachingfeedback',
   };
   Object.entries(sidebarPageMap).forEach(([elId, page])=>{
     const el = document.getElementById(elId);
@@ -4135,7 +4152,7 @@ function applyRoleVisibility(){
   });
 
   // Hide entire sidebar section if all its items are hidden
-  ['compliance','manager','holiday'].forEach(sec=>{
+  ['compliance','manager','coaching','holiday'].forEach(sec=>{
     const items = document.getElementById('sbItems-'+sec);
     const btn   = document.getElementById('sbSec-'+sec);
     if(!items||!btn) return;
@@ -7651,6 +7668,9 @@ function showPage(id){
   if(id==='bonuscalc'){ if(typeof bcInit==='function') bcInit(); }
   if(id==='globalsearch'){ renderGlobalSearch(); }
   if(id==='weeklystats'){ renderWeeklyStats(); }
+  if(id==='coaching121s'){ renderCoaching121s(); }
+  if(id==='coachingfeedback'){ renderCoachingFeedback(); }
+  if(id==='myfeedback'){ renderMyFeedback(); }
 }
 
 // ── SIDEBAR ────────────────────────────────────────────────────────
@@ -25911,6 +25931,595 @@ if(typeof selectDivision === 'function'){
 <!-- Weekly Stats page -->
 <div class="page" id="page-weeklystats"></div>
 
+<!-- COACHING — 1:1's (Manager / Master / SMT) -->
+<div class="page" id="page-coaching121s"></div>
+<!-- COACHING — Call Feedback (Manager / Master / SMT submit & view) -->
+<div class="page" id="page-coachingfeedback"></div>
+<!-- COACHING — My Feedback (Consultant view of feedback received) -->
+<div class="page" id="page-myfeedback"></div>
+
+<style>
+/* ── COACHING SHARED STYLES ───────────────────────────────────────── */
+.coach-wrap{max-width:1100px;margin:0 auto;padding:6px 4px 30px;}
+.coach-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow);}
+.coach-card-title{font-family:var(--fh);font-weight:700;font-size:15px;letter-spacing:.02em;color:var(--text);margin:0 0 14px;display:flex;align-items:center;gap:8px;}
+.coach-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+@media(max-width:720px){ .coach-row{grid-template-columns:1fr;} }
+.coach-field{display:flex;flex-direction:column;gap:6px;}
+.coach-lbl{font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);}
+.coach-input,.coach-select,.coach-textarea{
+  background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;
+  padding:10px 12px;font-family:var(--fh);font-size:13px;color:var(--text);
+  outline:none;transition:border-color .15s,background .15s;width:100%;box-sizing:border-box;
+}
+.coach-input:focus,.coach-select:focus,.coach-textarea:focus{ border-color:var(--accent); background:var(--surface3); }
+.coach-textarea{ min-height:140px; resize:vertical; line-height:1.55; font-family:var(--fh); }
+.coach-textarea.big{ min-height:170px; }
+.coach-btn-submit{
+  background:linear-gradient(135deg,var(--accent),var(--blue));
+  color:#fff;border:none;border-radius:10px;padding:12px 28px;font-family:var(--fh);
+  font-weight:700;font-size:13px;letter-spacing:.04em;cursor:pointer;
+  transition:transform .15s, box-shadow .15s, opacity .15s;
+}
+.coach-btn-submit:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(94,156,245,.28); }
+.coach-btn-submit:disabled{ opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+.coach-btn-secondary{
+  background:var(--surface3);color:var(--text2);border:1px solid var(--border2);
+  border-radius:8px;padding:8px 14px;font-family:var(--fm);font-size:11px;font-weight:600;
+  letter-spacing:.04em;cursor:pointer;transition:all .15s;
+}
+.coach-btn-secondary:hover{ background:var(--surface2);color:var(--text);border-color:var(--accent); }
+.coach-feedback-item{
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:16px 18px;margin-bottom:12px;transition:border-color .15s;
+}
+.coach-feedback-item:hover{ border-color:var(--border2); }
+.coach-fb-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+.coach-fb-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--fm);font-size:11px;color:var(--text2);}
+.coach-fb-name{font-family:var(--fh);font-weight:700;font-size:14px;color:var(--text);}
+.coach-fb-pill{display:inline-block;padding:2px 9px;border-radius:10px;font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;}
+.coach-fb-pill.tud{background:var(--blue-bg);color:var(--blue);}
+.coach-fb-pill.quoted{background:var(--purple-bg);color:var(--purple);}
+.coach-fb-pill.apps{background:var(--green-bg);color:var(--green);}
+.coach-fb-pill.onrisk{background:var(--amber-bg);color:var(--amber);}
+.coach-fb-section{margin-top:10px;}
+.coach-fb-section-lbl{font-family:var(--fm);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;}
+.coach-fb-section-body{font-family:var(--fh);font-size:13px;color:var(--text);white-space:pre-wrap;line-height:1.55;}
+.coach-empty{text-align:center;padding:50px 20px;color:var(--text3);font-family:var(--fm);font-size:13px;}
+.coach-empty-icon{font-size:38px;margin-bottom:10px;opacity:.5;}
+.coach-toast{
+  position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+  background:var(--green);color:#fff;padding:12px 22px;border-radius:10px;
+  font-family:var(--fh);font-weight:700;font-size:13px;letter-spacing:.03em;
+  box-shadow:0 8px 28px rgba(0,0,0,.4);z-index:99999;opacity:0;
+  transition:opacity .25s, transform .25s; pointer-events:none;
+}
+.coach-toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+.coach-toast.err{ background:var(--red); }
+.coach-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+.coach-tab{
+  background:transparent;border:none;color:var(--text3);
+  font-family:var(--fh);font-weight:600;font-size:13px;letter-spacing:.02em;
+  padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .15s;
+}
+.coach-tab:hover{ color:var(--text2); }
+.coach-tab.active{ color:var(--accent); border-bottom-color:var(--accent); }
+.coach-filter-bar{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;
+}
+.coach-pill-divkey{display:inline-block;padding:2px 9px;border-radius:10px;background:var(--surface3);color:var(--text2);font-family:var(--fm);font-size:10px;font-weight:600;letter-spacing:.04em;}
+</style>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   COACHING MODULE
+   - Sidebar entry "Coaching" with sub-options "1:1's" and "Call Feedback"
+   - Managers/Masters/SMT can submit Call Feedback for any consultant
+   - Consultants see feedback addressed to them under "Call Feedback" tab
+   - SMT can see feedback for consultants in their division(s)
+   - Data stored at: <coachingRoot>/callFeedback/<id> with shape:
+       { id, consultantId, consultantName, divKey, callDate, callType,
+         feedback, actions, authorId, authorName, authorRole, createdAt }
+   ════════════════════════════════════════════════════════════════════ */
+(function(){
+  // Use a single global root so SMT/Master can see across all divisions.
+  // Path lives outside any specific division dbKey but inside the dashboard root
+  // so this dashboard's data stays isolated from the BAU dashboard's data.
+  const COACH_ROOT = "perfDash2_core/coaching";
+  const _coachRef = (sub) => (window._db ? window._db.ref(COACH_ROOT + (sub ? '/'+sub : '')) : null);
+
+  const CALL_TYPES = [
+    { v:'tud',     label:'TUD',     pill:'tud' },
+    { v:'quoted',  label:'Quoted',  pill:'quoted' },
+    { v:'apps',    label:"App's",   pill:'apps' },
+    { v:'onrisk',  label:'On Risk', pill:'onrisk' },
+  ];
+  const CT_MAP = Object.fromEntries(CALL_TYPES.map(c=>[c.v,c]));
+
+  let _allFeedback = [];      // cached array of all feedback
+  let _fbListenerOn = false;
+  let _fbCacheReady = false;
+
+  function _showToast(msg, isErr){
+    let t = document.getElementById('coachToast');
+    if(!t){
+      t = document.createElement('div');
+      t.id = 'coachToast';
+      t.className = 'coach-toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.toggle('err', !!isErr);
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(()=>t.classList.remove('show'), 2400);
+  }
+
+  function _esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function _fmtDate(iso){
+    if(!iso) return '—';
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  }
+  function _fmtDateTime(ts){
+    if(!ts) return '—';
+    const d = new Date(ts);
+    if(isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  // Build {id,name,divKey} list of all consultants from _allUsers
+  function _allConsultants(){
+    const list = [];
+    if(window._allUsers){
+      Object.entries(window._allUsers).forEach(([uid,u])=>{
+        if(u && u.role === 'consultant'){
+          list.push({ id: uid, name: u.name || '(unknown)', divKey: u.divKey || '' });
+        }
+      });
+    }
+    list.sort((a,b)=>a.name.localeCompare(b.name));
+    return list;
+  }
+
+  // What divisions the current user can VIEW feedback for
+  function _viewableDivKeys(){
+    const u = window._currentUser;
+    if(!u) return [];
+    const role = u.role || 'consultant';
+    if(role === 'master' || role === 'smt') return null; // null = all
+    if(role === 'manager') return null;                  // managers can view all (same as before for staff perf)
+    return [];
+  }
+
+  // Permission to submit feedback
+  function _canSubmitFeedback(){
+    const r = window._currentUser?.role;
+    return r === 'master' || r === 'manager';
+  }
+
+  function _startFeedbackListener(){
+    if(_fbListenerOn) return;
+    const ref = _coachRef('callFeedback');
+    if(!ref) return;
+    _fbListenerOn = true;
+    ref.on('value', snap=>{
+      const data = snap.val() || {};
+      _allFeedback = Object.entries(data).map(([id,v])=>({ id, ...(v||{}) }));
+      _allFeedback.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      _fbCacheReady = true;
+      // Re-render the active page if it's a coaching page
+      const activePage = document.querySelector('.page.active');
+      if(activePage){
+        const aid = activePage.id;
+        if(aid === 'page-coachingfeedback') _renderCoachFbList();
+        else if(aid === 'page-myfeedback') _renderMyFbList();
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // 1:1's PAGE (placeholder – ready to be expanded)
+  // ══════════════════════════════════════════════════════════════════
+  window.renderCoaching121s = function(){
+    const page = document.getElementById('page-coaching121s');
+    if(!page) return;
+    page.innerHTML =
+      '<div class="section-head">' +
+        '<div>' +
+          '<div class="section-title">👥 1:1\'s</div>' +
+          '<div class="section-sub">Schedule and record one-to-one coaching sessions with your team</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="coach-wrap">' +
+        '<div class="coach-card">' +
+          '<div class="coach-empty">' +
+            '<div class="coach-empty-icon">👥</div>' +
+            '<div style="font-size:14px;color:var(--text2);margin-bottom:6px;">1:1 coaching workspace coming soon</div>' +
+            '<div style="font-size:12px;">This area is reserved for structured 1:1 notes, agenda items and follow-ups.</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  // CALL FEEDBACK PAGE (Manager / Master / SMT)
+  // Two tabs: "New Feedback" (form) and "History" (all feedback)
+  // ══════════════════════════════════════════════════════════════════
+  let _coachFbActiveTab = 'new';
+  let _coachFbFilter = { consultant:'', divKey:'', callType:'' };
+
+  window.renderCoachingFeedback = function(){
+    const page = document.getElementById('page-coachingfeedback');
+    if(!page) return;
+    _startFeedbackListener();
+
+    const canSubmit = _canSubmitFeedback();
+    // SMT can view but not submit — auto-route them to history
+    if(!canSubmit) _coachFbActiveTab = 'history';
+
+    let html = ''+
+      '<div class="section-head">' +
+        '<div>' +
+          '<div class="section-title">📞 Call Feedback</div>' +
+          '<div class="section-sub">' +
+            (canSubmit
+              ? 'Record call feedback and review past sessions'
+              : 'View call feedback recorded across the team') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="coach-wrap">' +
+        '<div class="coach-tabs">' +
+          (canSubmit ? '<button class="coach-tab '+(_coachFbActiveTab==='new'?'active':'')+'" onclick="_coachFbSwitchTab(\'new\')">✏️ New Feedback</button>' : '') +
+          '<button class="coach-tab '+(_coachFbActiveTab==='history'?'active':'')+'" onclick="_coachFbSwitchTab(\'history\')">📚 History</button>' +
+        '</div>' +
+        '<div id="coachFbTabBody"></div>' +
+      '</div>';
+    page.innerHTML = html;
+
+    if(_coachFbActiveTab === 'new' && canSubmit) _renderCoachFbForm();
+    else _renderCoachFbList();
+  };
+
+  window._coachFbSwitchTab = function(tab){
+    _coachFbActiveTab = tab;
+    document.querySelectorAll('#page-coachingfeedback .coach-tab').forEach(b=>b.classList.remove('active'));
+    const btn = document.querySelector('#page-coachingfeedback .coach-tab[onclick*="\''+tab+'\'"]');
+    if(btn) btn.classList.add('active');
+    if(tab === 'new') _renderCoachFbForm();
+    else _renderCoachFbList();
+  };
+
+  function _renderCoachFbForm(){
+    const body = document.getElementById('coachFbTabBody');
+    if(!body) return;
+    const consultants = _allConsultants();
+
+    // Pre-select consultant filtered by current division if the manager has one set
+    const curDiv = window._currentDivKey || '';
+
+    let consultantOpts = '<option value="">— Select consultant —</option>';
+    consultants.forEach(c=>{
+      const lbl = c.name + (c.divKey && c.divKey !== curDiv ? ' ('+(window.DIVISIONS?.[c.divKey]?.label||c.divKey)+')' : '');
+      consultantOpts += '<option value="'+_esc(c.id)+'" data-name="'+_esc(c.name)+'" data-div="'+_esc(c.divKey)+'">'+_esc(lbl)+'</option>';
+    });
+
+    let typeOpts = '<option value="">— Select call type —</option>';
+    CALL_TYPES.forEach(t=>{ typeOpts += '<option value="'+t.v+'">'+_esc(t.label)+'</option>'; });
+
+    const today = new Date().toISOString().slice(0,10);
+
+    body.innerHTML = ''+
+      '<div class="coach-card">' +
+        '<div class="coach-card-title">✏️ New Call Feedback</div>' +
+        '<div class="coach-row">' +
+          '<div class="coach-field">' +
+            '<div class="coach-lbl">Consultant</div>' +
+            '<select id="cfConsultant" class="coach-select">'+consultantOpts+'</select>' +
+          '</div>' +
+          '<div class="coach-field">' +
+            '<div class="coach-lbl">Call Date</div>' +
+            '<input id="cfDate" type="date" class="coach-input" value="'+today+'" max="'+today+'">' +
+          '</div>' +
+        '</div>' +
+        '<div class="coach-row">' +
+          '<div class="coach-field">' +
+            '<div class="coach-lbl">Call Type</div>' +
+            '<select id="cfType" class="coach-select">'+typeOpts+'</select>' +
+          '</div>' +
+          '<div></div>' +
+        '</div>' +
+        '<div class="coach-field" style="margin-bottom:14px;">' +
+          '<div class="coach-lbl">Feedback</div>' +
+          '<textarea id="cfFeedback" class="coach-textarea big" placeholder="What did you observe on the call? Strengths, areas to develop, specific moments…"></textarea>' +
+        '</div>' +
+        '<div class="coach-field" style="margin-bottom:18px;">' +
+          '<div class="coach-lbl">Actions</div>' +
+          '<textarea id="cfActions" class="coach-textarea big" placeholder="Agreed next steps, behaviours to practise, follow-up items, support to provide…"></textarea>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:10px;align-items:center;">' +
+          '<button class="coach-btn-secondary" onclick="_coachFbResetForm()">Clear</button>' +
+          '<button id="cfSubmit" class="coach-btn-submit" onclick="_coachFbSubmit()">Submit Feedback</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  window._coachFbResetForm = function(){
+    const ids = ['cfConsultant','cfType','cfFeedback','cfActions'];
+    ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
+    const dEl = document.getElementById('cfDate');
+    if(dEl) dEl.value = new Date().toISOString().slice(0,10);
+  };
+
+  window._coachFbSubmit = function(){
+    if(!_canSubmitFeedback()){ _showToast('You don\'t have permission to submit feedback', true); return; }
+
+    const consSel = document.getElementById('cfConsultant');
+    const dateEl  = document.getElementById('cfDate');
+    const typeEl  = document.getElementById('cfType');
+    const fbEl    = document.getElementById('cfFeedback');
+    const actEl   = document.getElementById('cfActions');
+    const btn     = document.getElementById('cfSubmit');
+
+    const consultantId = (consSel?.value||'').trim();
+    const callDate     = (dateEl?.value||'').trim();
+    const callType     = (typeEl?.value||'').trim();
+    const feedback     = (fbEl?.value||'').trim();
+    const actions      = (actEl?.value||'').trim();
+
+    if(!consultantId){ _showToast('Please select a consultant', true); return; }
+    if(!callDate){ _showToast('Please choose the call date', true); return; }
+    if(!callType){ _showToast('Please pick a call type', true); return; }
+    if(!feedback){ _showToast('Please add feedback', true); return; }
+    if(!actions){ _showToast('Please add actions', true); return; }
+
+    const consOpt = consSel.selectedOptions[0];
+    const consultantName = consOpt?.dataset?.name || '';
+    const divKey = consOpt?.dataset?.div || '';
+
+    const u = window._currentUser || {};
+    const ref = _coachRef('callFeedback');
+    if(!ref){ _showToast('Database not available', true); return; }
+
+    const newRef = ref.push();
+    const id = newRef.key;
+    const record = {
+      id,
+      consultantId,
+      consultantName,
+      divKey,
+      callDate,
+      callType,
+      feedback,
+      actions,
+      authorId: u.id || '',
+      authorName: u.name || '',
+      authorRole: u.role || '',
+      createdAt: Date.now(),
+    };
+
+    if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+    newRef.set(record).then(()=>{
+      _showToast('Feedback submitted ✓');
+      _coachFbResetForm();
+      if(btn){ btn.disabled = false; btn.textContent = 'Submit Feedback'; }
+      // Auto-jump to history so they can see it landed
+      setTimeout(()=>_coachFbSwitchTab('history'), 600);
+    }).catch(err=>{
+      console.error('Coach FB save failed', err);
+      _showToast('Save failed — check connection', true);
+      if(btn){ btn.disabled = false; btn.textContent = 'Submit Feedback'; }
+    });
+  };
+
+  function _renderCoachFbList(){
+    const body = document.getElementById('coachFbTabBody');
+    if(!body) return;
+    const u = window._currentUser || {};
+    const role = u.role || '';
+
+    const consultants = _allConsultants();
+    let consultantOpts = '<option value="">All consultants</option>';
+    consultants.forEach(c=>{
+      consultantOpts += '<option value="'+_esc(c.id)+'" '+(_coachFbFilter.consultant===c.id?'selected':'')+'>'+_esc(c.name)+'</option>';
+    });
+
+    let divOpts = '<option value="">All divisions</option>';
+    if(window.DIVISIONS){
+      Object.entries(window.DIVISIONS).forEach(([k,d])=>{
+        divOpts += '<option value="'+_esc(k)+'" '+(_coachFbFilter.divKey===k?'selected':'')+'>'+_esc(d.icon||'')+' '+_esc(d.label||k)+'</option>';
+      });
+    }
+
+    let typeOpts = '<option value="">All types</option>';
+    CALL_TYPES.forEach(t=>{ typeOpts += '<option value="'+t.v+'" '+(_coachFbFilter.callType===t.v?'selected':'')+'>'+_esc(t.label)+'</option>'; });
+
+    let html = ''+
+      '<div class="coach-filter-bar">' +
+        '<div class="coach-field" style="flex:1;min-width:160px;">' +
+          '<div class="coach-lbl">Consultant</div>' +
+          '<select id="cfFConsultant" class="coach-select" onchange="_coachFbApplyFilters()">'+consultantOpts+'</select>' +
+        '</div>' +
+        '<div class="coach-field" style="flex:1;min-width:160px;">' +
+          '<div class="coach-lbl">Division</div>' +
+          '<select id="cfFDiv" class="coach-select" onchange="_coachFbApplyFilters()">'+divOpts+'</select>' +
+        '</div>' +
+        '<div class="coach-field" style="flex:1;min-width:140px;">' +
+          '<div class="coach-lbl">Call Type</div>' +
+          '<select id="cfFType" class="coach-select" onchange="_coachFbApplyFilters()">'+typeOpts+'</select>' +
+        '</div>' +
+        '<button class="coach-btn-secondary" onclick="_coachFbClearFilters()">Clear</button>' +
+      '</div>' +
+      '<div id="coachFbList"></div>';
+    body.innerHTML = html;
+
+    _renderCoachFbItems();
+  }
+
+  window._coachFbApplyFilters = function(){
+    _coachFbFilter.consultant = document.getElementById('cfFConsultant')?.value || '';
+    _coachFbFilter.divKey     = document.getElementById('cfFDiv')?.value || '';
+    _coachFbFilter.callType   = document.getElementById('cfFType')?.value || '';
+    _renderCoachFbItems();
+  };
+  window._coachFbClearFilters = function(){
+    _coachFbFilter = { consultant:'', divKey:'', callType:'' };
+    _renderCoachFbList();
+  };
+
+  function _renderCoachFbItems(){
+    const out = document.getElementById('coachFbList');
+    if(!out) return;
+    if(!_fbCacheReady){
+      out.innerHTML = '<div class="coach-empty"><div class="coach-empty-icon">⏳</div><div>Loading feedback…</div></div>';
+      return;
+    }
+
+    const u = window._currentUser || {};
+    const role = u.role || '';
+    const viewable = _viewableDivKeys(); // null = all, [] = none
+
+    let items = _allFeedback.slice();
+    if(viewable !== null){
+      const set = new Set(viewable);
+      items = items.filter(it => set.has(it.divKey));
+    }
+    if(_coachFbFilter.consultant) items = items.filter(it => it.consultantId === _coachFbFilter.consultant);
+    if(_coachFbFilter.divKey)     items = items.filter(it => it.divKey === _coachFbFilter.divKey);
+    if(_coachFbFilter.callType)   items = items.filter(it => it.callType === _coachFbFilter.callType);
+
+    if(!items.length){
+      out.innerHTML = '<div class="coach-empty"><div class="coach-empty-icon">📭</div><div>No feedback found.</div><div style="font-size:11px;margin-top:4px;">Try adjusting filters or submit a new entry.</div></div>';
+      return;
+    }
+
+    let html = '';
+    items.forEach(it=>{
+      const ct = CT_MAP[it.callType] || { label: it.callType||'—', pill:'' };
+      const divLbl = window.DIVISIONS?.[it.divKey]?.label || it.divKey || '';
+      const canDelete = (role === 'master') || (role === 'manager' && it.authorId === u.id);
+      html += ''+
+        '<div class="coach-feedback-item">' +
+          '<div class="coach-fb-hdr">' +
+            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+              '<span class="coach-fb-name">'+_esc(it.consultantName||'(unknown)')+'</span>' +
+              '<span class="coach-fb-pill '+ct.pill+'">'+_esc(ct.label)+'</span>' +
+              (divLbl ? '<span class="coach-pill-divkey">'+_esc(divLbl)+'</span>' : '') +
+            '</div>' +
+            '<div class="coach-fb-meta">' +
+              '<span>📅 '+_esc(_fmtDate(it.callDate))+'</span>' +
+              '<span>·</span>' +
+              '<span>By '+_esc(it.authorName||'—')+'</span>' +
+              '<span>·</span>' +
+              '<span style="color:var(--text3);">'+_esc(_fmtDateTime(it.createdAt))+'</span>' +
+              (canDelete ? ' <button class="coach-btn-secondary" style="margin-left:8px;padding:4px 10px;font-size:10px;" onclick="_coachFbDelete(\''+_esc(it.id)+'\')">🗑 Delete</button>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="coach-fb-section">' +
+            '<div class="coach-fb-section-lbl">Feedback</div>' +
+            '<div class="coach-fb-section-body">'+_esc(it.feedback||'—')+'</div>' +
+          '</div>' +
+          '<div class="coach-fb-section">' +
+            '<div class="coach-fb-section-lbl">Actions</div>' +
+            '<div class="coach-fb-section-body">'+_esc(it.actions||'—')+'</div>' +
+          '</div>' +
+        '</div>';
+    });
+    out.innerHTML = html;
+  }
+
+  window._coachFbDelete = function(id){
+    if(!id) return;
+    const u = window._currentUser || {};
+    const role = u.role || '';
+    const item = _allFeedback.find(x=>x.id===id);
+    if(!item) return;
+    const allowed = (role === 'master') || (role === 'manager' && item.authorId === u.id);
+    if(!allowed){ _showToast('You can only delete your own feedback', true); return; }
+    if(!confirm('Delete this feedback for '+(item.consultantName||'this consultant')+'? This cannot be undone.')) return;
+    const ref = _coachRef('callFeedback/'+id);
+    if(!ref) return;
+    ref.remove().then(()=>_showToast('Feedback deleted')).catch(()=>_showToast('Delete failed', true));
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  // CONSULTANT VIEW — feedback addressed to me
+  // ══════════════════════════════════════════════════════════════════
+  window.renderMyFeedback = function(){
+    const page = document.getElementById('page-myfeedback');
+    if(!page) return;
+    _startFeedbackListener();
+
+    page.innerHTML = ''+
+      '<div class="section-head">' +
+        '<div>' +
+          '<div class="section-title">📞 Call Feedback</div>' +
+          '<div class="section-sub">Feedback your manager has shared with you</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="coach-wrap">' +
+        '<div id="myFbList"></div>' +
+      '</div>';
+    _renderMyFbList();
+  };
+
+  function _renderMyFbList(){
+    const out = document.getElementById('myFbList');
+    if(!out) return;
+    if(!_fbCacheReady){
+      out.innerHTML = '<div class="coach-empty"><div class="coach-empty-icon">⏳</div><div>Loading your feedback…</div></div>';
+      return;
+    }
+    const u = window._currentUser || {};
+    const myId = u.id;
+    const items = _allFeedback.filter(it => it.consultantId === myId);
+    if(!items.length){
+      out.innerHTML = ''+
+        '<div class="coach-card">' +
+          '<div class="coach-empty">' +
+            '<div class="coach-empty-icon">📭</div>' +
+            '<div style="font-size:14px;color:var(--text2);margin-bottom:6px;">No call feedback yet</div>' +
+            '<div style="font-size:12px;">When your manager records feedback for one of your calls, it will appear here.</div>' +
+          '</div>' +
+        '</div>';
+      return;
+    }
+
+    let html = '';
+    items.forEach(it=>{
+      const ct = CT_MAP[it.callType] || { label: it.callType||'—', pill:'' };
+      html += ''+
+        '<div class="coach-feedback-item">' +
+          '<div class="coach-fb-hdr">' +
+            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+              '<span class="coach-fb-pill '+ct.pill+'">'+_esc(ct.label)+'</span>' +
+              '<span style="font-family:var(--fh);font-weight:700;font-size:14px;color:var(--text);">📅 '+_esc(_fmtDate(it.callDate))+'</span>' +
+            '</div>' +
+            '<div class="coach-fb-meta">' +
+              '<span>From '+_esc(it.authorName||'—')+'</span>' +
+              '<span>·</span>' +
+              '<span style="color:var(--text3);">Logged '+_esc(_fmtDateTime(it.createdAt))+'</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="coach-fb-section">' +
+            '<div class="coach-fb-section-lbl">Feedback</div>' +
+            '<div class="coach-fb-section-body">'+_esc(it.feedback||'—')+'</div>' +
+          '</div>' +
+          '<div class="coach-fb-section">' +
+            '<div class="coach-fb-section-lbl">Actions</div>' +
+            '<div class="coach-fb-section-body">'+_esc(it.actions||'—')+'</div>' +
+          '</div>' +
+        '</div>';
+    });
+    out.innerHTML = html;
+  }
+
+})();
+</script>
 </body>
 </html>
 
